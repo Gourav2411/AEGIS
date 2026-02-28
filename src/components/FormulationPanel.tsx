@@ -27,12 +27,23 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
         </div>
         <div className="text-right">
           <div className="text-xs text-cyan-500/70 uppercase tracking-widest">Compound ID</div>
-          <div className="text-lg text-neon-green font-bold tracking-widest">{result.name}</div>
+          <div className="text-lg text-neon-green font-bold tracking-widest">{result.compoundId}</div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 space-y-6">
         
+        {/* Formulation Name */}
+        <div className="bg-neon-cyan/10 border border-neon-cyan/50 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-xs text-neon-cyan uppercase tracking-widest mb-1">Generated Formulation Name</h3>
+            <p className="text-2xl text-white font-bold tracking-wider">{result.name}</p>
+          </div>
+          <div className="hidden md:block text-neon-cyan/30">
+            <Beaker className="w-12 h-12" />
+          </div>
+        </div>
+
         {/* Mechanism of Action */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
           <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">

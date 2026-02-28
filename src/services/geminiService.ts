@@ -4,6 +4,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export interface FormulationResult {
   name: string;
+  compoundId: string;
   mechanismOfAction: string;
   activeIngredients: string[];
   closestMedicines: {
@@ -48,7 +49,7 @@ Cure Required: ${cureRequired}
 Category: ${category}
 Target Receptors: ${receptors}
 
-Provide a novel drug name, its mechanism of action, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
+Provide a novel drug name, a unique alphanumeric compound ID (e.g., AEGIS-742X), its mechanism of action, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -59,6 +60,7 @@ Provide a novel drug name, its mechanism of action, a list of active synthetic i
         type: Type.OBJECT,
         properties: {
           name: { type: Type.STRING, description: "Novel drug name" },
+          compoundId: { type: Type.STRING, description: "A unique alphanumeric compound identifier (e.g., AEGIS-742X)" },
           mechanismOfAction: { type: Type.STRING },
           activeIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
           closestMedicines: {
@@ -75,7 +77,7 @@ Provide a novel drug name, its mechanism of action, a list of active synthetic i
             },
           },
         },
-        required: ["name", "mechanismOfAction", "activeIngredients", "closestMedicines"],
+        required: ["name", "compoundId", "mechanismOfAction", "activeIngredients", "closestMedicines"],
       },
     },
   });
