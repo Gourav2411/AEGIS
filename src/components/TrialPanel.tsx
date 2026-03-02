@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp } from 'lucide-react';
+import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter } from 'lucide-react';
 import { TrialResult } from '../services/geminiService';
 
 interface TrialPanelProps {
@@ -115,6 +115,27 @@ export default function TrialPanel({ result, onNext, onReset, loading }: TrialPa
               <TrendingUp className="w-4 h-4" /> Long-Term Efficacy
             </h3>
             <p className="text-sm text-cyan-100 leading-relaxed">{result.longTermEfficacy}</p>
+          </div>
+        </div>
+
+        {/* Biomarkers & Clearance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Dna className="w-4 h-4" /> Key Biomarkers Tracked
+            </h3>
+            <ul className="list-disc list-inside text-sm text-cyan-100 space-y-1">
+              {result.keyBiomarkers.map((biomarker, idx) => (
+                <li key={idx}>{biomarker}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Filter className="w-4 h-4" /> Clearance Mechanism
+            </h3>
+            <p className="text-sm text-cyan-100 leading-relaxed">{result.clearanceMechanism}</p>
           </div>
         </div>
 

@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network } from 'lucide-react';
-import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult } from './services/geminiService';
+import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams } from './services/geminiService';
 import InputPanel from './components/InputPanel';
 import FormulationPanel from './components/FormulationPanel';
 import TrialPanel from './components/TrialPanel';
+import TrialInputPanel from './components/TrialInputPanel';
 import PackagingPanel from './components/PackagingPanel';
 import Visualizer from './components/Visualizer';
+import JarvisAssistant from './components/JarvisAssistant';
 
-export type Step = 'input' | 'formulation' | 'trial' | 'packaging';
+export type Step = 'input' | 'formulation' | 'trial-input' | 'trial' | 'packaging';
 
 export interface FormData {
   disease: string;
@@ -18,20 +20,51 @@ export interface FormData {
 }
 
 export default function App() {
-  const [step, setStep] = useState<Step>('input');
+  // Initialize state from localStorage if available
+  const loadSavedState = <T,>(key: string, defaultValue: T): T => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : defaultValue;
+    } catch (e) {
+      return defaultValue;
+    }
+  };
+
+  const [step, setStep] = useState<Step>(() => loadSavedState('app_step', 'input'));
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<FormData>(() => loadSavedState('app_formData', {
     disease: '',
     cureRequired: '',
     category: 'Small Molecule',
     receptors: ''
-  });
+  }));
 
-  const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(null);
-  const [trialResult, setTrialResult] = useState<TrialResult | null>(null);
-  const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(null);
+  const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(() => loadSavedState('app_formulationResult', null));
+  const [trialResult, setTrialResult] = useState<TrialResult | null>(() => loadSavedState('app_trialResult', null));
+  const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(() => loadSavedState('app_packagingResult', null));
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('app_step', JSON.stringify(step));
+  }, [step]);
+
+  useEffect(() => {
+    localStorage.setItem('app_formData', JSON.stringify(formData));
+  }, [formData]);
+
+  useEffect(() => {
+    localStorage.setItem('app_formulationResult', JSON.stringify(formulationResult));
+  }, [formulationResult]);
+
+  useEffect(() => {
+    localStorage.setItem('app_trialResult', JSON.stringify(trialResult));
+  }, [trialResult]);
+
+  useEffect(() => {
+    localStorage.setItem('app_packagingResult', JSON.stringify(packagingResult));
+  }, [packagingResult]);
 
   const handleGenerateFormulation = async (data: FormData) => {
     setFormData(data);
@@ -48,12 +81,12 @@ export default function App() {
     }
   };
 
-  const handleSimulateTrial = async () => {
+  const handleSimulateTrial = async (params: TrialParams) => {
     if (!formulationResult) return;
     setLoading(true);
     setLoadingText('Running in-silico and in-vitro simulations...');
     try {
-      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction);
+      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params);
       setTrialResult(result);
       setStep('trial');
     } catch (error) {
@@ -84,6 +117,13 @@ export default function App() {
     setTrialResult(null);
     setPackagingResult(null);
     setFormData({ disease: '', cureRequired: '', category: 'Small Molecule', receptors: '' });
+    
+    // Clear localStorage
+    localStorage.removeItem('app_step');
+    localStorage.removeItem('app_formData');
+    localStorage.removeItem('app_formulationResult');
+    localStorage.removeItem('app_trialResult');
+    localStorage.removeItem('app_packagingResult');
   };
 
   return (
@@ -123,7 +163,7 @@ export default function App() {
         {/* Left Panel - Visualizer */}
         <div className="w-full lg:w-1/3 h-full flex flex-col gap-6">
           <div className="glass-panel flex-1 rounded-xl p-6 flex flex-col items-center justify-center relative overflow-hidden">
-            <Visualizer step={step} loading={loading} />
+            <Visualizer step={step} loading={loading} trialResult={trialResult} />
             
             {/* Status Overlay */}
             <div className="absolute bottom-4 left-4 right-4 font-mono text-xs">
@@ -148,7 +188,8 @@ export default function App() {
              {[
                { id: 'input', icon: Dna, label: 'DISCOVERY' },
                { id: 'formulation', icon: Beaker, label: 'SYNTHESIS' },
-               { id: 'trial', icon: Activity, label: 'SIMULATION' },
+               { id: 'trial-input', icon: Activity, label: 'TRIAL PREP' },
+               { id: 'trial', icon: ShieldAlert, label: 'SIMULATION' },
                { id: 'packaging', icon: Package, label: 'LOGISTICS' }
              ].map((s, i) => (
                <div key={s.id} className={`flex flex-col items-center gap-2 ${step === s.id ? 'text-neon-cyan' : 'text-cyan-500/40'}`}>
@@ -170,9 +211,19 @@ export default function App() {
           {step === 'formulation' && formulationResult && (
             <FormulationPanel 
               result={formulationResult} 
-              onNext={handleSimulateTrial} 
+              onNext={() => setStep('trial-input')} 
               onReset={resetSystem}
               loading={loading} 
+            />
+          )}
+
+          {step === 'trial-input' && formulationResult && (
+            <TrialInputPanel
+              formulation={formulationResult}
+              disease={formData.disease}
+              onSimulate={handleSimulateTrial}
+              onReset={resetSystem}
+              loading={loading}
             />
           )}
 
@@ -193,6 +244,9 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Jarvis Assistant Overlay */}
+      <JarvisAssistant />
     </div>
   );
 }

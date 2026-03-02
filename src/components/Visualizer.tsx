@@ -1,13 +1,15 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Step } from '../App';
+import { TrialResult } from '../services/geminiService';
 
 interface VisualizerProps {
   step: Step;
   loading: boolean;
+  trialResult?: TrialResult | null;
 }
 
-export default function Visualizer({ step, loading }: VisualizerProps) {
+export default function Visualizer({ step, loading, trialResult }: VisualizerProps) {
   
   // Base animation for the outer rings
   const ringAnimation = {
@@ -35,7 +37,7 @@ export default function Visualizer({ step, loading }: VisualizerProps) {
       <div className={`absolute inset-0 rounded-full blur-3xl opacity-20 transition-colors duration-1000 ${
         step === 'input' ? 'bg-cyan-500' :
         step === 'formulation' ? 'bg-purple-500' :
-        step === 'trial' ? 'bg-green-500' : 'bg-blue-500'
+        (step === 'trial' || step === 'trial-input') ? 'bg-green-500' : 'bg-blue-500'
       }`}></div>
 
       {/* Ring 1 (Outer) */}
@@ -95,7 +97,7 @@ export default function Visualizer({ step, loading }: VisualizerProps) {
           </div>
         )}
 
-        {step === 'trial' && (
+        {step === 'trial-input' && (
           <div className="relative w-full h-full flex items-center justify-center">
             {/* DNA / Sine wave representing trials */}
             <motion.svg width="80" height="80" viewBox="0 0 100 100" className="text-neon-green">
@@ -117,6 +119,86 @@ export default function Visualizer({ step, loading }: VisualizerProps) {
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               />
             </motion.svg>
+          </div>
+        )}
+
+        {step === 'trial' && (
+          <div className="relative w-full h-full flex items-center justify-center">
+            {trialResult ? (
+              <div className="relative w-full h-full flex items-center justify-center">
+                <svg width="100%" height="100%" viewBox="0 0 200 200" className="overflow-visible">
+                  {/* Background tracks */}
+                  <circle cx="100" cy="100" r="75" fill="none" stroke="currentColor" className="text-purple-900/30" strokeWidth="10" />
+                  <circle cx="100" cy="100" r="55" fill="none" stroke="currentColor" className="text-cyan-900/30" strokeWidth="10" />
+                  <circle cx="100" cy="100" r="35" fill="none" stroke="currentColor" className="text-green-900/30" strokeWidth="10" />
+
+                  {/* Progress tracks */}
+                  <motion.circle
+                    cx="100" cy="100" r="75" fill="none" stroke="currentColor" className="text-purple-400" strokeWidth="10" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 75}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 75 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 75 * (1 - trialResult.overallViability / 100) }}
+                    transition={{ duration: 1.5, delay: 0.4, ease: "easeOut" }}
+                    transform="rotate(-90 100 100)"
+                  />
+                  <motion.circle
+                    cx="100" cy="100" r="55" fill="none" stroke="currentColor" className="text-neon-cyan" strokeWidth="10" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 55}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 55 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 55 * (1 - trialResult.inVitroSuccess / 100) }}
+                    transition={{ duration: 1.5, delay: 0.2, ease: "easeOut" }}
+                    transform="rotate(-90 100 100)"
+                  />
+                  <motion.circle
+                    cx="100" cy="100" r="35" fill="none" stroke="currentColor" className="text-neon-green" strokeWidth="10" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 35}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 35 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 35 * (1 - trialResult.inSilicoSuccess / 100) }}
+                    transition={{ duration: 1.5, delay: 0, ease: "easeOut" }}
+                    transform="rotate(-90 100 100)"
+                  />
+                </svg>
+                
+                {/* Center Text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <motion.span 
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 1 }}
+                    className="text-3xl font-bold text-purple-400 drop-shadow-[0_0_8px_rgba(192,132,252,0.5)]"
+                  >
+                    {trialResult.overallViability}%
+                  </motion.span>
+                </div>
+                
+                {/* Labels */}
+                <div className="absolute inset-0 pointer-events-none">
+                   <div className="absolute top-[12.5%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] text-purple-400 font-mono tracking-widest bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-purple-500/30">VIABILITY</div>
+                   <div className="absolute top-[22.5%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] text-neon-cyan font-mono tracking-widest bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-cyan-500/30">IN-VITRO</div>
+                   <div className="absolute top-[32.5%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] text-neon-green font-mono tracking-widest bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-green-500/30">IN-SILICO</div>
+                </div>
+              </div>
+            ) : (
+              <motion.svg width="80" height="80" viewBox="0 0 100 100" className="text-neon-green">
+                <motion.path 
+                  d="M 10 50 Q 30 10 50 50 T 90 50" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="3"
+                  animate={{ d: ["M 10 50 Q 30 10 50 50 T 90 50", "M 10 50 Q 30 90 50 50 T 90 50", "M 10 50 Q 30 10 50 50 T 90 50"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.path 
+                  d="M 10 50 Q 30 90 50 50 T 90 50" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="3"
+                  opacity="0.5"
+                  animate={{ d: ["M 10 50 Q 30 90 50 50 T 90 50", "M 10 50 Q 30 10 50 50 T 90 50", "M 10 50 Q 30 90 50 50 T 90 50"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              </motion.svg>
+            )}
           </div>
         )}
 

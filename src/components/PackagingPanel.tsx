@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2 } from 'lucide-react';
+import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck } from 'lucide-react';
 import { PackagingResult } from '../services/geminiService';
 
 interface PackagingPanelProps {
@@ -82,6 +82,27 @@ export default function PackagingPanel({ result, onReset }: PackagingPanelProps)
               <Globe className="w-4 h-4 text-blue-400" /> Distribution Plan
             </h3>
             <p className="text-sm text-cyan-100 leading-relaxed">{result.distributionPlan}</p>
+          </div>
+        </div>
+
+        {/* Regulatory & Shelf Life */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-yellow-400" /> Estimated Shelf Life
+            </h3>
+            <p className="text-sm text-cyan-100 font-bold">{result.shelfLife}</p>
+          </div>
+
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-neon-green" /> ISO Standards
+            </h3>
+            <ul className="list-disc list-inside text-sm text-cyan-100 space-y-1">
+              {result.isoStandards.map((standard, idx) => (
+                <li key={idx}>{standard}</li>
+              ))}
+            </ul>
           </div>
         </div>
 

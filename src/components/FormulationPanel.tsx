@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight } from 'lucide-react';
+import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle } from 'lucide-react';
 import { FormulationResult } from '../services/geminiService';
+import MolecularViewer from './MolecularViewer';
 
 interface FormulationPanelProps {
   result: FormulationResult;
@@ -44,12 +45,94 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
           </div>
         </div>
 
+        {/* Chemical Properties */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <FlaskConical className="w-4 h-4" /> Chemical Formula
+            </h3>
+            <p className="text-lg text-neon-green font-bold tracking-widest break-all">{result.chemicalFormula}</p>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <DollarSign className="w-4 h-4" /> Est. Manufacturing Cost
+            </h3>
+            <p className="text-lg text-neon-cyan font-bold tracking-widest">{result.manufacturingCost}</p>
+          </div>
+        </div>
+
+        {/* Molecular Structure */}
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+            <Dna className="w-4 h-4" /> Molecular Structure (SMILES)
+          </h3>
+          <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded font-mono text-xs text-cyan-100 break-all mb-4">
+            {result.molecularStructure}
+          </div>
+          <div className="h-64 w-full">
+            <MolecularViewer smiles={result.molecularStructure} />
+          </div>
+        </div>
+
         {/* Mechanism of Action */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
           <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
             <Activity className="w-4 h-4" /> Mechanism of Action
           </h3>
           <p className="text-sm text-cyan-100 leading-relaxed">{result.mechanismOfAction}</p>
+        </div>
+
+        {/* Clinical Properties */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Target className="w-4 h-4" /> Binding Affinity
+            </h3>
+            <p className="text-sm text-cyan-100">{result.bindingAffinity}</p>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Half-Life
+            </h3>
+            <p className="text-sm text-cyan-100">{result.halfLife}</p>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Droplets className="w-4 h-4" /> Bioavailability
+            </h3>
+            <p className="text-sm text-cyan-100">{result.bioavailability}</p>
+          </div>
+        </div>
+
+        {/* Physico-chemical Properties */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Droplets className="w-4 h-4 text-blue-400" /> Aqueous Solubility
+            </h3>
+            <p className="text-sm text-cyan-100">{result.solubility}</p>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-purple-400" /> pKa
+            </h3>
+            <p className="text-sm text-cyan-100">{result.pKa}</p>
+          </div>
+        </div>
+
+        {/* Drug Interactions */}
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-400" /> Predicted Drug Interactions
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {result.drugInteractions?.map((interaction, idx) => (
+              <div key={idx} className="flex items-start gap-3 text-sm text-cyan-100 bg-jarvis-bg border border-yellow-900/30 p-3 rounded-lg hover:border-yellow-500/50 transition-colors">
+                <AlertTriangle className="w-4 h-4 text-yellow-500/70 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{interaction}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Active Ingredients */}

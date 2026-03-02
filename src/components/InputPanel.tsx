@@ -108,8 +108,27 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
     receptors: ''
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.disease) {
+      setError("Target disease is required.");
+      return;
+    }
+    if (!formData.cureRequired) {
+      setError("Required cure/outcome is required.");
+      return;
+    }
+    if (!formData.category) {
+      setError("Drug category is required.");
+      return;
+    }
+    if (!formData.receptors) {
+      setError("Target receptors/biomarkers are required.");
+      return;
+    }
+    setError(null);
     onSubmit(formData);
   };
 
@@ -143,6 +162,11 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-6 font-mono">
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 text-red-400 px-4 py-3 rounded text-sm">
+            {error}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="flex flex-col gap-2">
             <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Target Disease / Condition</label>
@@ -218,7 +242,7 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
         <div className="mt-auto pt-6 border-t border-cyan-900/50 flex justify-end">
           <button 
             type="submit" 
-            disabled={loading || !formData.disease || !formData.cureRequired || !formData.category || !formData.receptors}
+            disabled={loading}
             className="group relative px-8 py-3 bg-cyan-950/50 border border-neon-cyan text-neon-cyan font-mono text-sm uppercase tracking-widest hover:bg-neon-cyan hover:text-jarvis-bg transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
           >
             <div className="absolute inset-0 bg-neon-cyan/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
