@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck } from 'lucide-react';
+import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck, DollarSign, List, Microscope } from 'lucide-react';
 import { PackagingResult } from '../services/geminiService';
 
 interface PackagingPanelProps {
@@ -103,6 +103,72 @@ export default function PackagingPanel({ result, onReset }: PackagingPanelProps)
                 <li key={idx}>{standard}</li>
               ))}
             </ul>
+          </div>
+        </div>
+
+        {/* Materials & Specifications */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <List className="w-4 h-4 text-orange-400" /> Raw Materials Needed
+            </h3>
+            <ul className="list-disc list-inside text-sm text-cyan-100 space-y-1">
+              {result.materialsNeeded?.map((material, idx) => (
+                <li key={idx}>{material}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Microscope className="w-4 h-4 text-purple-400" /> Scientific Specifications
+            </h3>
+            <ul className="list-disc list-inside text-sm text-cyan-100 space-y-1">
+              {result.scientificSpecifications?.map((spec, idx) => (
+                <li key={idx}>{spec}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Cost Analysis */}
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-neon-green" /> Manufacturing Cost Analysis (Per Batch)
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="bg-jarvis-bg border border-cyan-900/50 rounded-lg p-4 text-center">
+              <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest mb-1">In-House Manual Manufacturing</div>
+              <div className="text-xl text-neon-green font-bold">{result.costs?.manualBatchCost}</div>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/50 rounded-lg p-4 text-center">
+              <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest mb-1">Pre-Made Supplier Purchase</div>
+              <div className="text-xl text-blue-400 font-bold">{result.costs?.boughtBatchCost}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="bg-jarvis-bg border border-cyan-900/30 rounded p-3">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">R&D Cost</div>
+              <div className="text-sm text-cyan-100">{result.costs?.rdCost}</div>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 rounded p-3">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Lab Cost</div>
+              <div className="text-sm text-cyan-100">{result.costs?.labCost}</div>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 rounded p-3">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Infrastructure</div>
+              <div className="text-sm text-cyan-100">{result.costs?.infraCost}</div>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 rounded p-3">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Labour Cost</div>
+              <div className="text-sm text-cyan-100">{result.costs?.labourCost}</div>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 rounded p-3">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Land Cost</div>
+              <div className="text-sm text-cyan-100">{result.costs?.landCost}</div>
+            </div>
           </div>
         </div>
 

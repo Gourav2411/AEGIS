@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter } from 'lucide-react';
+import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter, Globe } from 'lucide-react';
 import { TrialResult } from '../services/geminiService';
 
 interface TrialPanelProps {
@@ -35,7 +35,10 @@ export default function TrialPanel({ result, onNext, onReset, loading }: TrialPa
             <Activity className="w-5 h-5" />
             Virtual Trial Simulation
           </h2>
-          <p className="text-sm text-cyan-500/70 mt-2">In-silico and in-vitro data analysis complete.</p>
+          <div className="flex items-center gap-2 mt-2">
+            <Globe className="w-3 h-3 text-neon-green animate-pulse" />
+            <p className="text-xs text-neon-green/80 uppercase tracking-widest">Simulated using real-world trial data</p>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-cyan-500/70 uppercase tracking-widest">Viability Score</div>
@@ -50,36 +53,36 @@ export default function TrialPanel({ result, onNext, onReset, loading }: TrialPa
         {/* Success Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
-                <BrainCircuit className="w-4 h-4" /> In-Silico Success
-              </h3>
-              <span className={`text-lg font-bold ${getScoreColor(result.inSilicoSuccess)}`}>{result.inSilicoSuccess}%</span>
-            </div>
-            <div className="h-1.5 bg-jarvis-bg rounded-full overflow-hidden">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2 mb-4">
+              <BrainCircuit className="w-4 h-4" /> In-Silico Success
+            </h3>
+            <div className="relative h-8 bg-jarvis-bg rounded-md overflow-hidden border border-cyan-900/30">
               <motion.div 
-                className={`h-full ${getScoreBg(result.inSilicoSuccess)}`}
+                className={`absolute top-0 left-0 h-full ${getScoreBg(result.inSilicoSuccess)} opacity-80`}
                 initial={{ width: 0 }}
                 animate={{ width: `${result.inSilicoSuccess}%` }}
                 transition={{ duration: 1, delay: 0.2 }}
               />
+              <div className="absolute inset-0 flex items-center justify-end pr-3">
+                <span className="text-lg font-bold text-white drop-shadow-md z-10">{result.inSilicoSuccess}%</span>
+              </div>
             </div>
           </div>
 
           <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 relative overflow-hidden">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
-                <Beaker className="w-4 h-4" /> In-Vitro Success
-              </h3>
-              <span className={`text-lg font-bold ${getScoreColor(result.inVitroSuccess)}`}>{result.inVitroSuccess}%</span>
-            </div>
-            <div className="h-1.5 bg-jarvis-bg rounded-full overflow-hidden">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2 mb-4">
+              <Beaker className="w-4 h-4" /> In-Vitro Success
+            </h3>
+            <div className="relative h-8 bg-jarvis-bg rounded-md overflow-hidden border border-cyan-900/30">
               <motion.div 
-                className={`h-full ${getScoreBg(result.inVitroSuccess)}`}
+                className={`absolute top-0 left-0 h-full ${getScoreBg(result.inVitroSuccess)} opacity-80`}
                 initial={{ width: 0 }}
                 animate={{ width: `${result.inVitroSuccess}%` }}
                 transition={{ duration: 1, delay: 0.4 }}
               />
+              <div className="absolute inset-0 flex items-center justify-end pr-3">
+                <span className="text-lg font-bold text-white drop-shadow-md z-10">{result.inVitroSuccess}%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -92,30 +95,47 @@ export default function TrialPanel({ result, onNext, onReset, loading }: TrialPa
           <p className="text-sm text-cyan-100 leading-relaxed mb-4">{result.toxicityProfile}</p>
           
           <h4 className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-2">Predicted Side Effects</h4>
-          <div className="flex flex-wrap gap-2">
+          <ul className="space-y-2">
             {result.sideEffects.map((effect, idx) => (
-              <span key={idx} className="text-xs px-2 py-1 bg-jarvis-bg border border-red-900/30 text-red-400 rounded flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> {effect}
-              </span>
+              <li key={idx} className="text-sm px-3 py-2 bg-jarvis-bg border border-red-900/30 text-red-400 rounded flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> 
+                <span>{effect}</span>
+              </li>
             ))}
+          </ul>
+        </div>
+
+        {/* Pharmacokinetic Profile (ADME) */}
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <LineChart className="w-4 h-4" /> Pharmacokinetic Profile (ADME)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Absorption</div>
+              <p className="text-sm text-cyan-100">{result.pharmacokineticProfile.absorption || 'N/A'}</p>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Distribution</div>
+              <p className="text-sm text-cyan-100">{result.pharmacokineticProfile.distribution || 'N/A'}</p>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Metabolism</div>
+              <p className="text-sm text-cyan-100">{result.pharmacokineticProfile.metabolism || 'N/A'}</p>
+            </div>
+            <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded">
+              <div className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-1">Excretion</div>
+              <p className="text-sm text-cyan-100">{result.pharmacokineticProfile.excretion || 'N/A'}</p>
+            </div>
           </div>
         </div>
 
         {/* Clinical Projections */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
-            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <LineChart className="w-4 h-4" /> Pharmacokinetic Profile
-            </h3>
-            <p className="text-sm text-cyan-100 leading-relaxed">{result.pharmacokineticProfile}</p>
-          </div>
-
-          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
-            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" /> Long-Term Efficacy
-            </h3>
-            <p className="text-sm text-cyan-100 leading-relaxed">{result.longTermEfficacy}</p>
-          </div>
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" /> Long-Term Efficacy
+          </h3>
+          <p className="text-sm text-cyan-100 leading-relaxed">{result.longTermEfficacy}</p>
         </div>
 
         {/* Biomarkers & Clearance */}

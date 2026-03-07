@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle } from 'lucide-react';
+import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle, Lightbulb, Globe } from 'lucide-react';
 import { FormulationResult } from '../services/geminiService';
 import MolecularViewer from './MolecularViewer';
+import InteractionSimulator from './InteractionSimulator';
 
 interface FormulationPanelProps {
   result: FormulationResult;
@@ -24,7 +25,10 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
             <Beaker className="w-5 h-5" />
             Synthesis Complete
           </h2>
-          <p className="text-sm text-cyan-500/70 mt-2">Novel molecular structure generated successfully.</p>
+          <div className="flex items-center gap-2 mt-2">
+            <Globe className="w-3 h-3 text-neon-green animate-pulse" />
+            <p className="text-xs text-neon-green/80 uppercase tracking-widest">Grounded in real-time clinical data</p>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-cyan-500/70 uppercase tracking-widest">Compound ID</div>
@@ -82,6 +86,16 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
           <p className="text-sm text-cyan-100 leading-relaxed">{result.mechanismOfAction}</p>
         </div>
 
+        {/* Design Rationale */}
+        {result.rationale && (
+          <div className="bg-neon-cyan/5 border border-neon-cyan/30 rounded-lg p-4">
+            <h3 className="text-xs text-neon-cyan uppercase tracking-widest mb-2 flex items-center gap-2">
+              <Lightbulb className="w-4 h-4" /> Design Rationale (Why this drug?)
+            </h3>
+            <p className="text-sm text-cyan-100 leading-relaxed">{result.rationale}</p>
+          </div>
+        )}
+
         {/* Clinical Properties */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
@@ -134,6 +148,9 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
             ))}
           </div>
         </div>
+
+        {/* Interaction Simulator Component */}
+        <InteractionSimulator formulation={result} />
 
         {/* Active Ingredients */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">

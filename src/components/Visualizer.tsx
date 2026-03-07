@@ -1,7 +1,8 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Step } from '../App';
 import { TrialResult } from '../services/geminiService';
+import { Activity, Beaker, ShieldAlert, Network, Dna, Target, Search, FlaskConical, CheckCircle2 } from 'lucide-react';
 
 interface VisualizerProps {
   step: Step;
@@ -10,6 +11,19 @@ interface VisualizerProps {
 }
 
 export default function Visualizer({ step, loading, trialResult }: VisualizerProps) {
+  const [simulationPhase, setSimulationPhase] = useState(0);
+
+  useEffect(() => {
+    if ((step === 'trial-input' || step === 'input') && loading) {
+      setSimulationPhase(0);
+      const interval = setInterval(() => {
+        setSimulationPhase(prev => (prev < 4 ? prev + 1 : prev));
+      }, 2000); // Change phase every 2 seconds
+      return () => clearInterval(interval);
+    } else {
+      setSimulationPhase(0);
+    }
+  }, [step, loading]);
   
   // Base animation for the outer rings
   const ringAnimation = {
@@ -62,7 +76,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
       {/* Core Element based on Step */}
       <div className="absolute inset-12 rounded-full flex items-center justify-center bg-jarvis-bg/50 backdrop-blur-sm border border-cyan-900/50 overflow-hidden">
         
-        {step === 'input' && (
+        {step === 'input' && !loading && (
           <motion.div 
             className="w-16 h-16 rounded-full bg-cyan-900/50 border border-neon-cyan flex items-center justify-center"
             animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
@@ -70,6 +84,43 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
           >
             <div className="w-8 h-8 rounded-full bg-neon-cyan blur-sm"></div>
           </motion.div>
+        )}
+
+        {step === 'input' && loading && (
+          <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
+            <AnimatePresence mode="wait">
+              {simulationPhase === 0 && (
+                <motion.div key="phase0" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-cyan-400">
+                  <Target className="w-12 h-12 mb-2 animate-pulse" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Target ID</span>
+                </motion.div>
+              )}
+              {simulationPhase === 1 && (
+                <motion.div key="phase1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-purple-400">
+                  <Search className="w-12 h-12 mb-2 animate-ping" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Screening</span>
+                </motion.div>
+              )}
+              {simulationPhase === 2 && (
+                <motion.div key="phase2" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-yellow-400">
+                  <Dna className="w-12 h-12 mb-2 animate-spin-slow" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Optimization</span>
+                </motion.div>
+              )}
+              {simulationPhase === 3 && (
+                <motion.div key="phase3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-blue-400">
+                  <FlaskConical className="w-12 h-12 mb-2 animate-bounce" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Formulation</span>
+                </motion.div>
+              )}
+              {simulationPhase === 4 && (
+                <motion.div key="phase4" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-green-400">
+                  <CheckCircle2 className="w-12 h-12 mb-2" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Synthesis Complete</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
         {step === 'formulation' && (
@@ -97,7 +148,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
           </div>
         )}
 
-        {step === 'trial-input' && (
+        {step === 'trial-input' && !loading && (
           <div className="relative w-full h-full flex items-center justify-center">
             {/* DNA / Sine wave representing trials */}
             <motion.svg width="80" height="80" viewBox="0 0 100 100" className="text-neon-green">
@@ -119,6 +170,43 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               />
             </motion.svg>
+          </div>
+        )}
+
+        {step === 'trial-input' && loading && (
+          <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
+            <AnimatePresence mode="wait">
+              {simulationPhase === 0 && (
+                <motion.div key="phase0" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-cyan-400">
+                  <Network className="w-12 h-12 mb-2 animate-pulse" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">In-Silico Docking</span>
+                </motion.div>
+              )}
+              {simulationPhase === 1 && (
+                <motion.div key="phase1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-green-400">
+                  <Beaker className="w-12 h-12 mb-2 animate-bounce" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">In-Vitro Cell Cultures</span>
+                </motion.div>
+              )}
+              {simulationPhase === 2 && (
+                <motion.div key="phase2" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-yellow-400">
+                  <ShieldAlert className="w-12 h-12 mb-2" style={{ animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Toxicity Screening</span>
+                </motion.div>
+              )}
+              {simulationPhase === 3 && (
+                <motion.div key="phase3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-purple-400">
+                  <Activity className="w-12 h-12 mb-2 animate-pulse" />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Pharmacokinetics</span>
+                </motion.div>
+              )}
+              {simulationPhase === 4 && (
+                <motion.div key="phase4" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-neon-cyan">
+                  <Dna className="w-12 h-12 mb-2 animate-spin" style={{ animationDuration: '3s' }} />
+                  <span className="text-[10px] uppercase tracking-widest text-center">Data Aggregation</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 

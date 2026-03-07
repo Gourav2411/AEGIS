@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network } from 'lucide-react';
-import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams } from './services/geminiService';
+import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network, LogOut } from 'lucide-react';
+import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams, setGeminiApiKey } from './services/geminiService';
 import InputPanel from './components/InputPanel';
 import FormulationPanel from './components/FormulationPanel';
 import TrialPanel from './components/TrialPanel';
@@ -9,6 +9,7 @@ import TrialInputPanel from './components/TrialInputPanel';
 import PackagingPanel from './components/PackagingPanel';
 import Visualizer from './components/Visualizer';
 import JarvisAssistant from './components/JarvisAssistant';
+import Login from './components/Login';
 
 export type Step = 'input' | 'formulation' | 'trial-input' | 'trial' | 'packaging';
 
@@ -29,6 +30,10 @@ export default function App() {
       return defaultValue;
     }
   };
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return !!localStorage.getItem('gemini_api_key');
+  });
 
   const [step, setStep] = useState<Step>(() => loadSavedState('app_step', 'input'));
   const [loading, setLoading] = useState(false);
@@ -66,6 +71,18 @@ export default function App() {
     localStorage.setItem('app_packagingResult', JSON.stringify(packagingResult));
   }, [packagingResult]);
 
+  const handleLogin = (apiKey: string) => {
+    setGeminiApiKey(apiKey);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setGeminiApiKey('');
+    localStorage.removeItem('gemini_api_key');
+    setIsAuthenticated(false);
+    resetSystem();
+  };
+
   const handleGenerateFormulation = async (data: FormData) => {
     setFormData(data);
     setLoading(true);
@@ -74,8 +91,9 @@ export default function App() {
       const result = await generateFormulation(data.disease, data.cureRequired, data.category, data.receptors);
       setFormulationResult(result);
       setStep('formulation');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Formulation error:", error);
+      alert(error.message || "An error occurred during formulation generation.");
     } finally {
       setLoading(false);
     }
@@ -89,8 +107,9 @@ export default function App() {
       const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params);
       setTrialResult(result);
       setStep('trial');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Trial error:", error);
+      alert(error.message || "An error occurred during trial simulation.");
     } finally {
       setLoading(false);
     }
@@ -104,8 +123,9 @@ export default function App() {
       const result = await generatePackaging(formulationResult.name, formData.category);
       setPackagingResult(result);
       setStep('packaging');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Packaging error:", error);
+      alert(error.message || "An error occurred during packaging generation.");
     } finally {
       setLoading(false);
     }
@@ -126,6 +146,10 @@ export default function App() {
     localStorage.removeItem('app_packagingResult');
   };
 
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div className="scanline"></div>
@@ -145,15 +169,22 @@ export default function App() {
           </div>
         </div>
         
-        <div className="flex gap-6 font-mono text-xs text-cyan-500/70">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-6 font-mono text-xs text-cyan-500/70">
+          <div className="hidden md:flex items-center gap-2">
             <Database className="w-4 h-4" />
             <span>SYS.ONLINE</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2">
             <Network className="w-4 h-4" />
             <span>NEURAL.LINK: ACTIVE</span>
           </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-1.5 border border-cyan-900/50 rounded hover:bg-cyan-900/30 hover:text-cyan-300 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>LOGOUT</span>
+          </button>
         </div>
       </header>
 
