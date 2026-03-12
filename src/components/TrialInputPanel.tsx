@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Users, Clock, Dna, Syringe, RefreshCw, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import { Activity, Users, Clock, Dna, Syringe, RefreshCw, ChevronRight, CheckCircle2, Circle, Database, Search } from 'lucide-react';
 import { FormulationResult, TrialParams } from '../services/geminiService';
 
 interface TrialInputPanelProps {
@@ -19,7 +19,8 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
     dosage: '50',
     dosageUnit: 'mg',
     duration: '6 Months',
-    geneticMarkers: 'None specific'
+    geneticMarkers: 'None specific',
+    useSCA: false
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +96,16 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
             >
               <div className="text-center mb-8">
                 <h3 className="text-xl text-neon-cyan uppercase tracking-widest mb-2 font-bold">Simulation in Progress</h3>
-                <p className="text-sm text-cyan-500/70">Running multi-phasic virtual trials on {params.cohortSize} synthetic patients.</p>
+                <p className="text-sm text-cyan-500/70">
+                  {params.useSCA 
+                    ? `Generating synthetic placebo group from EHR data and running trials on ${Number(params.cohortSize) / 2} recruited patients.`
+                    : `Running multi-phasic virtual trials on ${params.cohortSize} synthetic patients.`}
+                </p>
               </div>
 
               <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-cyan-900/50 before:to-transparent">
                 {[
+                  ...(params.useSCA ? [{ title: 'EHR Data Mining', desc: 'Extracting historical patient data for Synthetic Control Arm.' }] : []),
                   { title: 'In-Silico Molecular Docking', desc: 'Simulating receptor binding affinity and off-target interactions.' },
                   { title: 'In-Vitro Cell Culture Models', desc: 'Evaluating cellular toxicity and metabolic stability.' },
                   { title: 'Pharmacokinetic Profiling', desc: 'Calculating ADME (Absorption, Distribution, Metabolism, Excretion).' },
@@ -244,6 +250,75 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                     placeholder="e.g., BRCA1+, EGFR mutation"
                     className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
                   />
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="flex items-start gap-4 p-4 bg-cyan-950/20 border border-cyan-900/50 rounded-lg cursor-pointer hover:bg-cyan-950/40 transition-colors">
+                    <div className="relative mt-1">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only"
+                        checked={params.useSCA || false}
+                        onChange={(e) => setParams({...params, useSCA: e.target.checked})}
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${params.useSCA ? 'bg-neon-cyan' : 'bg-cyan-900/50'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${params.useSCA ? 'translate-x-4' : ''}`}></div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2">
+                        <Database className="w-4 h-4" /> Enable Synthetic Control Arm (SCA)
+                      </div>
+                      <p className="text-xs text-cyan-500/70 mt-1">
+                        Generate a mathematically rigorous "virtual placebo group" using anonymized Electronic Health Record (EHR) data. This eliminates the need to recruit half of your trial participants, saving months or years.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="flex items-start gap-4 p-4 bg-cyan-950/20 border border-cyan-900/50 rounded-lg cursor-pointer hover:bg-cyan-950/40 transition-colors">
+                    <div className="relative mt-1">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only"
+                        checked={params.useAdaptiveDesign || false}
+                        onChange={(e) => setParams({...params, useAdaptiveDesign: e.target.checked})}
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${params.useAdaptiveDesign ? 'bg-neon-cyan' : 'bg-cyan-900/50'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${params.useAdaptiveDesign ? 'translate-x-4' : ''}`}></div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2">
+                        <Activity className="w-4 h-4" /> Enable Bayesian Adaptive Design
+                      </div>
+                      <p className="text-xs text-cyan-500/70 mt-1">
+                        Automatically adjust patient allocation, drop failing dosages, or narrow the target demographic while the trial is running based on early data. Prevents trials from failing completely in Phase III by pivoting early.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="flex items-start gap-4 p-4 bg-cyan-950/20 border border-cyan-900/50 rounded-lg cursor-pointer hover:bg-cyan-950/40 transition-colors">
+                    <div className="relative mt-1">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only"
+                        checked={params.useRAG || false}
+                        onChange={(e) => setParams({...params, useRAG: e.target.checked})}
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${params.useRAG ? 'bg-neon-cyan' : 'bg-cyan-900/50'}`}></div>
+                      <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${params.useRAG ? 'translate-x-4' : ''}`}></div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2">
+                        <Search className="w-4 h-4" /> Enable Real-World Grounding (RAG)
+                      </div>
+                      <p className="text-xs text-cyan-500/70 mt-1">
+                        Query PubChem, ChEMBL, and ClinicalTrials.gov for similar molecular structures and historical trial failures. Bases the simulation strictly on empirical data from structurally similar compounds.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </div>
 

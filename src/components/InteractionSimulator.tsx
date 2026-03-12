@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, Search, Activity, ShieldAlert, ChevronDown, ChevronUp, Beaker, GitCompare, Filter as FilterIcon, ArrowUpDown, X, Network } from 'lucide-react';
+import { AlertTriangle, Search, Activity, ShieldAlert, ChevronDown, ChevronUp, Beaker, GitCompare, Filter as FilterIcon, ArrowUpDown, X, Network, LayoutGrid, Scale } from 'lucide-react';
 import { simulateDrugInteractions, InteractionResult, FormulationResult } from '../services/geminiService';
 import NetworkGraph from './NetworkGraph';
 
@@ -18,13 +18,16 @@ interface SimulationEntry {
 
 export default function InteractionSimulator({ formulation }: InteractionSimulatorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'network'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'network' | 'compare'>('cards');
   
   const [simulations, setSimulations] = useState<SimulationEntry[]>([]);
   const [newDrug, setNewDrug] = useState('');
   
   const [filterSeverity, setFilterSeverity] = useState<string>('All');
   const [sortBy, setSortBy] = useState<string>('None');
+
+  const [compareDrug1, setCompareDrug1] = useState<string>('');
+  const [compareDrug2, setCompareDrug2] = useState<string>('');
 
   const COMMON_DRUGS = ['Warfarin', 'Omeprazole', 'Atorvastatin', 'Ibuprofen', 'Metformin'];
 
@@ -185,6 +188,101 @@ export default function InteractionSimulator({ formulation }: InteractionSimulat
     );
   };
 
+  const renderCompareMode = () => {
+    const completedSimulations = simulations.filter(s => s.result !== null);
+    
+    if (completedSimulations.length < 2) {
+      return (
+        <div className="flex items-center justify-center p-8 border border-cyan-900/30 border-dashed rounded-lg bg-cyan-950/5 text-cyan-500/30 text-xs uppercase tracking-widest">
+          Simulate at least two drugs to compare them side-by-side.
+        </div>
+      );
+    }
+
+    const sim1 = completedSimulations.find(s => s.id === compareDrug1) || completedSimulations[0];
+    const sim2 = completedSimulations.find(s => s.id === compareDrug2) || completedSimulations[1];
+
+    return (
+      <div className="space-y-6">
+        <div className="flex gap-4 items-center">
+          <div className="flex-1 relative">
+            <select
+              value={sim1.id}
+              onChange={(e) => setCompareDrug1(e.target.value)}
+              className="w-full appearance-none bg-jarvis-bg border border-cyan-900/50 rounded pl-4 pr-8 py-2 text-sm text-cyan-100 focus:outline-none focus:border-neon-cyan transition-colors"
+            >
+              {completedSimulations.map(s => (
+                <option key={s.id} value={s.id}>{s.drugName}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/50 pointer-events-none" />
+          </div>
+          <div className="text-cyan-500/50 uppercase tracking-widest text-xs font-bold">VS</div>
+          <div className="flex-1 relative">
+            <select
+              value={sim2.id}
+              onChange={(e) => setCompareDrug2(e.target.value)}
+              className="w-full appearance-none bg-jarvis-bg border border-cyan-900/50 rounded pl-4 pr-8 py-2 text-sm text-cyan-100 focus:outline-none focus:border-neon-cyan transition-colors"
+            >
+              {completedSimulations.map(s => (
+                <option key={s.id} value={s.id}>{s.drugName}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/50 pointer-events-none" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {[sim1, sim2].map((sim, index) => (
+            <div key={`${sim.id}-${index}`} className={`p-4 rounded-lg border flex flex-col ${getSeverityColor(sim.result!.severity)}`}>
+              <div className="flex justify-between items-start mb-4 pb-4 border-b border-current/20">
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-70 mb-1">{sim.drugName}</div>
+                  <div className="text-xl font-bold uppercase tracking-wider flex items-center gap-2">
+                    {sim.result!.severity === 'Severe' || sim.result!.severity === 'High' ? <ShieldAlert className="w-5 h-5" /> : <Activity className="w-5 h-5" />}
+                    {sim.result!.severity}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-widest opacity-70 mb-1">Risk Score</div>
+                  <div className="text-2xl font-bold font-mono">{sim.result!.riskScore}/100</div>
+                </div>
+              </div>
+
+              <div className="space-y-4 flex-1">
+                <div>
+                  <h4 className="text-xs uppercase tracking-widest opacity-70 mb-1">Mechanism</h4>
+                  <p className="text-sm leading-relaxed opacity-90">{sim.result!.interactionMechanism}</p>
+                </div>
+                
+                <div>
+                  <h4 className="text-xs uppercase tracking-widest opacity-70 mb-1">Consequences</h4>
+                  <p className="text-sm leading-relaxed opacity-90">{sim.result!.clinicalConsequences}</p>
+                </div>
+
+                <div>
+                  <h4 className="text-xs uppercase tracking-widest opacity-70 mb-2">Affected Pathways</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {sim.result!.affectedPathways.map((pathway, idx) => (
+                      <span key={idx} className="text-[10px] px-2 py-1 bg-black/20 rounded border border-current/20">
+                        {pathway}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-current/20 mt-4">
+                <h4 className="text-xs uppercase tracking-widest opacity-70 mb-1">Recommendation</h4>
+                <p className="text-sm font-bold opacity-90">{sim.result!.recommendation}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg overflow-hidden mt-6">
       <button 
@@ -218,13 +316,19 @@ export default function InteractionSimulator({ formulation }: InteractionSimulat
                     onClick={() => setViewMode('cards')}
                     className={`px-3 py-1 text-xs rounded transition-colors flex items-center gap-1 ${viewMode === 'cards' ? 'bg-cyan-900/50 text-cyan-300' : 'text-cyan-500/70 hover:text-cyan-400'}`}
                   >
-                    <GitCompare className="w-3 h-3" /> Cards
+                    <LayoutGrid className="w-3 h-3" /> Cards
                   </button>
                   <button
                     onClick={() => setViewMode('network')}
                     className={`px-3 py-1 text-xs rounded transition-colors flex items-center gap-1 ${viewMode === 'network' ? 'bg-cyan-900/50 text-cyan-300' : 'text-cyan-500/70 hover:text-cyan-400'}`}
                   >
                     <Network className="w-3 h-3" /> Network
+                  </button>
+                  <button
+                    onClick={() => setViewMode('compare')}
+                    className={`px-3 py-1 text-xs rounded transition-colors flex items-center gap-1 ${viewMode === 'compare' ? 'bg-cyan-900/50 text-cyan-300' : 'text-cyan-500/70 hover:text-cyan-400'}`}
+                  >
+                    <Scale className="w-3 h-3" /> Compare
                   </button>
                 </div>
               </div>
@@ -301,6 +405,8 @@ export default function InteractionSimulator({ formulation }: InteractionSimulat
 
               {viewMode === 'network' ? (
                 <NetworkGraph primaryDrugName={formulation.name} simulations={simulations} />
+              ) : viewMode === 'compare' ? (
+                renderCompareMode()
               ) : (
                 <>
                   {simulations.length === 0 ? (

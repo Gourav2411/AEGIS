@@ -31,7 +31,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
     transition: {
       duration: loading ? 2 : 20,
       repeat: Infinity,
-      ease: "linear"
+      ease: "linear" as const
     }
   };
 
@@ -40,7 +40,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
     transition: {
       duration: loading ? 3 : 25,
       repeat: Infinity,
-      ease: "linear"
+      ease: "linear" as const
     }
   };
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, BrainCircuit, Volume2, Mic, MicOff, Loader2 } from 'lucide-react';
-import { chatWithJarvis, generateSpeech } from '../services/geminiService';
+import { chatWithJarvis, generateSpeech, getEffectiveApiKey, getCurrentProvider } from '../services/geminiService';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 
 interface Message {
@@ -118,7 +118,11 @@ export default function JarvisAssistant() {
       setIsLiveMode(true);
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: 'Initializing Live Audio Interface...' }]);
       
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const key = getEffectiveApiKey();
+      if (key === 'missing-key') {
+        throw new Error("API Key is missing.");
+      }
+      const ai = new GoogleGenAI({ apiKey: key });
       
       const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
@@ -316,17 +320,19 @@ export default function JarvisAssistant() {
                   </label>
                 </div>
 
-                <button
-                  onClick={toggleLiveMode}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase tracking-widest border transition-all ${
-                    isLiveMode 
-                      ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' 
-                      : 'bg-cyan-900/20 border-cyan-900/50 text-cyan-500 hover:border-neon-cyan hover:text-neon-cyan'
-                  }`}
-                >
-                  {isLiveMode ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
-                  {isLiveMode ? 'Live Active' : 'Live Voice'}
-                </button>
+                {getCurrentProvider() === 'gemini' && (
+                  <button
+                    onClick={toggleLiveMode}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] uppercase tracking-widest border transition-all ${
+                      isLiveMode 
+                        ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' 
+                        : 'bg-cyan-900/20 border-cyan-900/50 text-cyan-500 hover:border-neon-cyan hover:text-neon-cyan'
+                    }`}
+                  >
+                    {isLiveMode ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
+                    {isLiveMode ? 'Live Active' : 'Live Voice'}
+                  </button>
+                )}
               </div>
 
               {/* Input */}

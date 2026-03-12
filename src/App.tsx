@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network, LogOut } from 'lucide-react';
-import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams, setGeminiApiKey } from './services/geminiService';
+import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams, setGeminiApiKey, setAiProvider } from './services/geminiService';
 import InputPanel from './components/InputPanel';
 import FormulationPanel from './components/FormulationPanel';
+import PhysicsSimulationPanel from './components/PhysicsSimulationPanel';
 import TrialPanel from './components/TrialPanel';
 import TrialInputPanel from './components/TrialInputPanel';
 import PackagingPanel from './components/PackagingPanel';
 import Visualizer from './components/Visualizer';
 import JarvisAssistant from './components/JarvisAssistant';
-import Login from './components/Login';
+import Login, { AIProvider } from './components/Login';
 
-export type Step = 'input' | 'formulation' | 'trial-input' | 'trial' | 'packaging';
+export type Step = 'input' | 'formulation' | 'physics' | 'trial-input' | 'trial' | 'packaging';
 
 export interface FormData {
   disease: string;
@@ -48,6 +49,7 @@ export default function App() {
 
   const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(() => loadSavedState('app_formulationResult', null));
   const [trialResult, setTrialResult] = useState<TrialResult | null>(() => loadSavedState('app_trialResult', null));
+  const [trialParams, setTrialParams] = useState<TrialParams | null>(() => loadSavedState('app_trialParams', null));
   const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(() => loadSavedState('app_packagingResult', null));
 
   // Save state to localStorage whenever it changes
@@ -68,17 +70,23 @@ export default function App() {
   }, [trialResult]);
 
   useEffect(() => {
+    localStorage.setItem('app_trialParams', JSON.stringify(trialParams));
+  }, [trialParams]);
+
+  useEffect(() => {
     localStorage.setItem('app_packagingResult', JSON.stringify(packagingResult));
   }, [packagingResult]);
 
-  const handleLogin = (apiKey: string) => {
+  const handleLogin = (apiKey: string, provider: AIProvider) => {
     setGeminiApiKey(apiKey);
+    setAiProvider(provider);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     setGeminiApiKey('');
     localStorage.removeItem('gemini_api_key');
+    localStorage.removeItem('ai_provider');
     setIsAuthenticated(false);
     resetSystem();
   };
@@ -101,6 +109,7 @@ export default function App() {
 
   const handleSimulateTrial = async (params: TrialParams) => {
     if (!formulationResult) return;
+    setTrialParams(params);
     setLoading(true);
     setLoadingText('Running in-silico and in-vitro simulations...');
     try {
@@ -242,9 +251,18 @@ export default function App() {
           {step === 'formulation' && formulationResult && (
             <FormulationPanel 
               result={formulationResult} 
-              onNext={() => setStep('trial-input')} 
+              onNext={() => setStep('physics')} 
               onReset={resetSystem}
               loading={loading} 
+            />
+          )}
+
+          {step === 'physics' && formulationResult && (
+            <PhysicsSimulationPanel
+              formulation={formulationResult}
+              receptor={formData.receptors}
+              onNext={() => setStep('trial-input')}
+              onReset={resetSystem}
             />
           )}
 
@@ -261,6 +279,9 @@ export default function App() {
           {step === 'trial' && trialResult && (
             <TrialPanel 
               result={trialResult} 
+              formulation={formulationResult}
+              formData={formData}
+              trialParams={trialParams}
               onNext={handleGeneratePackaging} 
               onReset={resetSystem}
               loading={loading} 

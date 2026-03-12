@@ -212,7 +212,7 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
         >
           <div className="absolute inset-0 bg-neon-cyan/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
           <span className="relative flex items-center gap-2">
-            {loading ? 'Simulating...' : 'Run Virtual Trials'}
+            {loading ? 'Simulating...' : 'Run Physics Simulation'}
             <ChevronRight className="w-4 h-4" />
           </span>
         </button>
