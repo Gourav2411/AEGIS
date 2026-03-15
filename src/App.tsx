@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network, LogOut } from 'lucide-react';
-import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams, setGeminiApiKey, setAiProvider } from './services/geminiService';
+import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams } from './services/geminiService';
 import InputPanel from './components/InputPanel';
 import FormulationPanel from './components/FormulationPanel';
 import PhysicsSimulationPanel from './components/PhysicsSimulationPanel';
@@ -10,7 +10,10 @@ import TrialInputPanel from './components/TrialInputPanel';
 import PackagingPanel from './components/PackagingPanel';
 import Visualizer from './components/Visualizer';
 import JarvisAssistant from './components/JarvisAssistant';
-import Login, { AIProvider } from './components/Login';
+import Login from './components/Login';
+import { auth, db, logout } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export type Step = 'input' | 'formulation' | 'physics' | 'trial-input' | 'trial' | 'packaging';
 
@@ -21,73 +24,137 @@ export interface FormData {
   receptors: string;
 }
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 export default function App() {
-  // Initialize state from localStorage if available
-  const loadSavedState = <T,>(key: string, defaultValue: T): T => {
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : defaultValue;
-    } catch (e) {
-      return defaultValue;
-    }
-  };
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return !!localStorage.getItem('gemini_api_key');
-  });
-
-  const [step, setStep] = useState<Step>(() => loadSavedState('app_step', 'input'));
+  const [step, setStep] = useState<Step>('input');
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   
-  const [formData, setFormData] = useState<FormData>(() => loadSavedState('app_formData', {
+  const [formData, setFormData] = useState<FormData>({
     disease: '',
     cureRequired: '',
     category: 'Small Molecule',
     receptors: ''
-  }));
+  });
 
-  const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(() => loadSavedState('app_formulationResult', null));
-  const [trialResult, setTrialResult] = useState<TrialResult | null>(() => loadSavedState('app_trialResult', null));
-  const [trialParams, setTrialParams] = useState<TrialParams | null>(() => loadSavedState('app_trialParams', null));
-  const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(() => loadSavedState('app_packagingResult', null));
-
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('app_step', JSON.stringify(step));
-  }, [step]);
+  const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(null);
+  const [trialResult, setTrialResult] = useState<TrialResult | null>(null);
+  const [trialParams, setTrialParams] = useState<TrialParams | null>(null);
+  const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(null);
+  const [csvData, setCsvData] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('app_formData', JSON.stringify(formData));
-  }, [formData]);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('app_formulationResult', JSON.stringify(formulationResult));
-  }, [formulationResult]);
+    if (user && authReady) {
+      const docRef = doc(db, 'projects', user.uid);
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.step) setStep(data.step as Step);
+          if (data.formData) setFormData(JSON.parse(data.formData));
+          if (data.formulationResult) setFormulationResult(JSON.parse(data.formulationResult));
+          if (data.trialParams) setTrialParams(JSON.parse(data.trialParams));
+          if (data.trialResult) setTrialResult(JSON.parse(data.trialResult));
+          if (data.packagingResult) setPackagingResult(JSON.parse(data.packagingResult));
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, `projects/${user.uid}`);
+      });
+      return () => unsubscribe();
+    }
+  }, [user, authReady]);
 
-  useEffect(() => {
-    localStorage.setItem('app_trialResult', JSON.stringify(trialResult));
-  }, [trialResult]);
-
-  useEffect(() => {
-    localStorage.setItem('app_trialParams', JSON.stringify(trialParams));
-  }, [trialParams]);
-
-  useEffect(() => {
-    localStorage.setItem('app_packagingResult', JSON.stringify(packagingResult));
-  }, [packagingResult]);
-
-  const handleLogin = (apiKey: string, provider: AIProvider) => {
-    setGeminiApiKey(apiKey);
-    setAiProvider(provider);
-    setIsAuthenticated(true);
+  const saveStateToFirestore = async (updates: any) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'projects', user.uid);
+      const docSnap = await getDoc(docRef);
+      const now = new Date();
+      if (!docSnap.exists()) {
+        await setDoc(docRef, {
+          userId: user.uid,
+          createdAt: now,
+          updatedAt: now,
+          ...updates
+        });
+      } else {
+        await setDoc(docRef, {
+          ...docSnap.data(),
+          updatedAt: now,
+          ...updates
+        }, { merge: true });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `projects/${user?.uid}`);
+    }
   };
 
-  const handleLogout = () => {
-    setGeminiApiKey('');
-    localStorage.removeItem('gemini_api_key');
-    localStorage.removeItem('ai_provider');
-    setIsAuthenticated(false);
+  const handleLogin = () => {
+    // Handled by onAuthStateChanged
+  };
+
+  const handleLogout = async () => {
+    await logout();
     resetSystem();
   };
 
@@ -99,6 +166,11 @@ export default function App() {
       const result = await generateFormulation(data.disease, data.cureRequired, data.category, data.receptors);
       setFormulationResult(result);
       setStep('formulation');
+      await saveStateToFirestore({
+        formData: JSON.stringify(data),
+        formulationResult: JSON.stringify(result),
+        step: 'formulation'
+      });
     } catch (error: any) {
       console.error("Formulation error:", error);
       alert(error.message || "An error occurred during formulation generation.");
@@ -113,9 +185,14 @@ export default function App() {
     setLoading(true);
     setLoadingText('Running in-silico and in-vitro simulations...');
     try {
-      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params);
+      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params, csvData || undefined);
       setTrialResult(result);
       setStep('trial');
+      await saveStateToFirestore({
+        trialParams: JSON.stringify(params),
+        trialResult: JSON.stringify(result),
+        step: 'trial'
+      });
     } catch (error: any) {
       console.error("Trial error:", error);
       alert(error.message || "An error occurred during trial simulation.");
@@ -132,6 +209,10 @@ export default function App() {
       const result = await generatePackaging(formulationResult.name, formData.category);
       setPackagingResult(result);
       setStep('packaging');
+      await saveStateToFirestore({
+        packagingResult: JSON.stringify(result),
+        step: 'packaging'
+      });
     } catch (error: any) {
       console.error("Packaging error:", error);
       alert(error.message || "An error occurred during packaging generation.");
@@ -140,22 +221,30 @@ export default function App() {
     }
   };
 
-  const resetSystem = () => {
+  const resetSystem = async () => {
     setStep('input');
     setFormulationResult(null);
     setTrialResult(null);
     setPackagingResult(null);
     setFormData({ disease: '', cureRequired: '', category: 'Small Molecule', receptors: '' });
     
-    // Clear localStorage
-    localStorage.removeItem('app_step');
-    localStorage.removeItem('app_formData');
-    localStorage.removeItem('app_formulationResult');
-    localStorage.removeItem('app_trialResult');
-    localStorage.removeItem('app_packagingResult');
+    if (user) {
+      await saveStateToFirestore({
+        step: 'input',
+        formData: null,
+        formulationResult: null,
+        trialParams: null,
+        trialResult: null,
+        packagingResult: null
+      });
+    }
   };
 
-  if (!isAuthenticated) {
+  if (!authReady) {
+    return <div className="min-h-screen bg-jarvis-bg flex items-center justify-center font-mono text-neon-cyan">Loading...</div>;
+  }
+
+  if (!user) {
     return <Login onLogin={handleLogin} />;
   }
 
@@ -273,6 +362,8 @@ export default function App() {
               onSimulate={handleSimulateTrial}
               onReset={resetSystem}
               loading={loading}
+              csvData={csvData}
+              setCsvData={setCsvData}
             />
           )}
 

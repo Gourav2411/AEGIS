@@ -5,6 +5,7 @@ import { TrialResult, FormulationResult, generateClinicalTrialReport, TrialParam
 import Markdown from 'react-markdown';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie } from 'recharts';
 
 interface TrialPanelProps {
   result: TrialResult;
@@ -194,16 +195,71 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
           </h3>
           <p className="text-sm text-cyan-100 leading-relaxed mb-4">{result.toxicityProfile}</p>
           
-          <h4 className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-2">Predicted Side Effects</h4>
-          <ul className="space-y-2">
-            {result.sideEffects.map((effect, idx) => (
-              <li key={idx} className="text-sm px-3 py-2 bg-jarvis-bg border border-red-900/30 text-red-400 rounded flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> 
-                <span>{effect}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-2">Predicted Side Effects</h4>
+              <ul className="space-y-2">
+                {result.sideEffects.map((effect, idx) => (
+                  <li key={idx} className="text-sm px-3 py-2 bg-jarvis-bg border border-red-900/30 text-red-400 rounded flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> 
+                    <span>{effect}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            {result.sideEffectDistribution && result.sideEffectDistribution.length > 0 && (
+              <div>
+                <h4 className="text-[10px] text-cyan-500/50 uppercase tracking-widest mb-2">Side Effect Distribution</h4>
+                <div className="h-48 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={result.sideEffectDistribution} layout="vertical" margin={{ top: 5, right: 20, left: 40, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#164e63" horizontal={false} />
+                      <XAxis type="number" stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} />
+                      <YAxis dataKey="effect" type="category" stroke="#06b6d4" fontSize={10} width={80} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#083344', borderColor: '#164e63', color: '#cffafe', fontSize: '12px' }}
+                        formatter={(value: number) => [`${value}%`, 'Incidence']}
+                      />
+                      <Bar dataKey="percentage" fill="#ef4444" radius={[0, 4, 4, 0]}>
+                        {result.sideEffectDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.percentage > 15 ? '#ef4444' : entry.percentage > 5 ? '#f59e0b' : '#22c55e'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Efficacy Over Time Chart */}
+        {result.efficacyOverTime && result.efficacyOverTime.length > 0 && (
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Efficacy Over Time
+            </h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsLineChart data={result.efficacyOverTime} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#164e63" />
+                  <XAxis dataKey="month" stroke="#06b6d4" fontSize={10} />
+                  <YAxis stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#083344', borderColor: '#164e63', color: '#cffafe', fontSize: '12px' }}
+                    formatter={(value: number) => [`${value}%`, 'Efficacy']}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', color: '#06b6d4' }} />
+                  <Line type="monotone" dataKey="efficacy" stroke="#22d3ee" strokeWidth={2} dot={{ r: 4, fill: '#083344', stroke: '#22d3ee', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#22d3ee' }} name="Treatment Group" />
+                  {trialParams?.useSCA && (
+                    <Line type="monotone" dataKey="placeboEfficacy" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4, fill: '#083344', stroke: '#94a3b8', strokeWidth: 2 }} name="Synthetic Control Arm" />
+                  )}
+                </RechartsLineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         {/* Pharmacokinetic Profile (ADME) */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
@@ -265,15 +321,32 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
             <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
               <Users className="w-4 h-4" /> Predicted Patient Adherence
             </h3>
-            <span className={`text-lg font-bold ${getScoreColor(result.patientAdherenceScore)}`}>{result.patientAdherenceScore}%</span>
           </div>
-          <div className="h-1.5 bg-jarvis-bg rounded-full overflow-hidden">
-            <motion.div 
-              className={`h-full ${getScoreBg(result.patientAdherenceScore)}`}
-              initial={{ width: 0 }}
-              animate={{ width: `${result.patientAdherenceScore}%` }}
-              transition={{ duration: 1, delay: 0.6 }}
-            />
+          <div className="h-40 w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Adherent', value: result.patientAdherenceScore },
+                    { name: 'Non-Adherent', value: 100 - result.patientAdherenceScore }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  startAngle={90}
+                  endAngle={-270}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  <Cell fill={result.patientAdherenceScore >= 80 ? '#22c55e' : result.patientAdherenceScore >= 50 ? '#f59e0b' : '#ef4444'} />
+                  <Cell fill="#083344" />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex items-center justify-center flex-col">
+              <span className={`text-2xl font-bold ${getScoreColor(result.patientAdherenceScore)}`}>{result.patientAdherenceScore}%</span>
+            </div>
           </div>
         </div>
 

@@ -71,10 +71,10 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
             <Dna className="w-4 h-4" /> Molecular Structure (SMILES)
           </h3>
           <div className="bg-jarvis-bg border border-cyan-900/30 p-3 rounded font-mono text-xs text-cyan-100 break-all mb-4">
-            {result.molecularStructure}
+            {result.smilesString}
           </div>
           <div className="h-64 w-full">
-            <MolecularViewer smiles={result.molecularStructure} />
+            <MolecularViewer smiles={result.smilesString} />
           </div>
         </div>
 

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Users, Clock, Dna, Syringe, RefreshCw, ChevronRight, CheckCircle2, Circle, Database, Search } from 'lucide-react';
-import { FormulationResult, TrialParams } from '../services/geminiService';
+import { Activity, Users, Clock, Dna, Syringe, RefreshCw, ChevronRight, CheckCircle2, Circle, Database, Search, Beaker, Zap, AlertTriangle, Upload } from 'lucide-react';
+import { FormulationResult, TrialParams, optimizeProtocol, ProtocolOptimizationResult } from '../services/geminiService';
 
 interface TrialInputPanelProps {
   formulation: FormulationResult;
@@ -9,10 +9,13 @@ interface TrialInputPanelProps {
   onSimulate: (params: TrialParams) => void;
   onReset: () => void;
   loading: boolean;
+  csvData: string | null;
+  setCsvData: (data: string | null) => void;
 }
 
-export default function TrialInputPanel({ formulation, disease, onSimulate, onReset, loading }: TrialInputPanelProps) {
-  const [params, setParams] = useState<TrialParams>({
+export default function TrialInputPanel({ formulation, disease, onSimulate, onReset, loading, csvData, setCsvData }: TrialInputPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const defaultParams: TrialParams = {
     phase: 'Phase 2',
     cohortSize: '500',
     ageGroup: 'Adults (18-65)',
@@ -20,11 +23,49 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
     dosageUnit: 'mg',
     duration: '6 Months',
     geneticMarkers: 'None specific',
-    useSCA: false
-  });
+    diseaseSeverity: '',
+    previousTreatments: '',
+    inclusionCriteria: '',
+    exclusionCriteria: '',
+    dosageAdjustments: '',
+    useSCA: false,
+    useAdaptiveDesign: false,
+    useRAG: false
+  };
+
+  const [params, setParams] = useState<TrialParams>(defaultParams);
 
   const [error, setError] = useState<string | null>(null);
   const [simulationPhase, setSimulationPhase] = useState(0);
+  const [qsarData, setQsarData] = useState<any>(null);
+  const [qsarLoading, setQsarLoading] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState<ProtocolOptimizationResult | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+
+  useEffect(() => {
+    const fetchQsar = async () => {
+      setQsarLoading(true);
+      try {
+        const smilesToUse = formulation.smilesString || formulation.molecularStructure;
+        const res = await fetch('/api/qsar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ smiles: smilesToUse })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setQsarData(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch QSAR data", err);
+      } finally {
+        setQsarLoading(false);
+      }
+    };
+    if (formulation.smilesString || formulation.molecularStructure) {
+      fetchQsar();
+    }
+  }, [formulation.smilesString, formulation.molecularStructure]);
 
   useEffect(() => {
     if (loading) {
@@ -37,6 +78,23 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
       setSimulationPhase(0);
     }
   }, [loading]);
+
+  const handleOptimize = async () => {
+    setOptimizing(true);
+    try {
+      const result = await optimizeProtocol(disease, params);
+      setOptimizationResult(result);
+    } catch (err) {
+      console.error("Optimization failed", err);
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const handleResetParams = () => {
+    setParams(defaultParams);
+    setOptimizationResult(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +120,24 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
     }
     setError(null);
     onSimulate(params);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result;
+        if (typeof text === 'string') {
+          setCsvData(text);
+          setError(null);
+        }
+      };
+      reader.onerror = () => {
+        setError("Failed to read the file.");
+      };
+      reader.readAsText(file);
+    }
   };
 
   return (
@@ -252,6 +328,155 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                    <Activity className="w-4 h-4" /> Disease Severity
+                  </label>
+                  <input 
+                    type="text"
+                    value={params.diseaseSeverity}
+                    onChange={(e) => setParams({...params, diseaseSeverity: e.target.value})}
+                    placeholder="e.g., Mild to Moderate, Stage III"
+                    className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Previous Treatments
+                  </label>
+                  <input 
+                    type="text"
+                    value={params.previousTreatments}
+                    onChange={(e) => setParams({...params, previousTreatments: e.target.value})}
+                    placeholder="e.g., Treatment-naive, Post-chemotherapy"
+                    className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Inclusion Criteria
+                  </label>
+                  <input 
+                    type="text"
+                    value={params.inclusionCriteria}
+                    onChange={(e) => setParams({...params, inclusionCriteria: e.target.value})}
+                    placeholder="e.g., BMI 18-30, Normal liver function"
+                    className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Exclusion Criteria
+                  </label>
+                  <input 
+                    type="text"
+                    value={params.exclusionCriteria}
+                    onChange={(e) => setParams({...params, exclusionCriteria: e.target.value})}
+                    placeholder="e.g., History of cardiovascular disease"
+                    className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                    <Syringe className="w-4 h-4" /> Dosage Adjustments
+                  </label>
+                  <input 
+                    type="text"
+                    value={params.dosageAdjustments}
+                    onChange={(e) => setParams({...params, dosageAdjustments: e.target.value})}
+                    placeholder="e.g., Reduce by 50% for elderly"
+                    className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Protocol Optimizer */}
+                <div className="md:col-span-2 bg-cyan-950/30 border border-cyan-900/50 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h3 className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2">
+                        <Users className="w-4 h-4" /> Protocol Optimizer
+                      </h3>
+                      <p className="text-xs text-cyan-500/70 mt-1">
+                        Analyze global patient databases to estimate eligible population and optimize criteria.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOptimize}
+                      disabled={optimizing}
+                      className="px-4 py-2 bg-cyan-900/50 hover:bg-neon-cyan hover:text-jarvis-bg text-neon-cyan text-xs uppercase tracking-widest rounded transition-colors disabled:opacity-50"
+                    >
+                      {optimizing ? 'Optimizing...' : 'Optimize Protocol'}
+                    </button>
+                  </div>
+                  
+                  {optimizationResult && (
+                    <div className="space-y-4 mt-4 pt-4 border-t border-cyan-900/50">
+                      <div className="flex gap-4">
+                        <div className="bg-jarvis-bg p-3 rounded border border-cyan-900/30 flex-1">
+                          <div className="text-xs text-cyan-500/70 uppercase mb-1">Eligible Population</div>
+                          <div className="text-lg text-neon-green font-bold">{optimizationResult.estimatedEligiblePopulation.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-jarvis-bg p-3 rounded border border-cyan-900/30 flex-1">
+                          <div className="text-xs text-cyan-500/70 uppercase mb-1">Feasibility</div>
+                          <div className={`text-lg font-bold ${optimizationResult.recruitmentFeasibility.includes('High') ? 'text-red-400' : 'text-neon-cyan'}`}>
+                            {optimizationResult.recruitmentFeasibility}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {optimizationResult.suggestions.length > 0 && (
+                        <div className="bg-jarvis-bg p-3 rounded border border-cyan-900/30">
+                          <div className="text-xs text-cyan-500/70 uppercase mb-2">Optimization Suggestions</div>
+                          <ul className="space-y-3">
+                            {optimizationResult.suggestions.map((s, i) => (
+                              <li key={i} className="text-xs">
+                                <span className="text-neon-cyan font-bold">{s.parameter}:</span> Change from <span className="text-red-400">"{s.currentValue}"</span> to <span className="text-neon-green">"{s.suggestedValue}"</span>.
+                                <div className="text-cyan-500/70 mt-1">{s.reason} <span className="text-neon-green ml-2">{s.impactOnEnrollment}</span></div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* QSAR Data */}
+                <div className="md:col-span-2 bg-cyan-950/30 border border-cyan-900/50 rounded-lg p-4">
+                  <h3 className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2 mb-4">
+                    <Beaker className="w-4 h-4" /> QSAR Predictions
+                  </h3>
+                  {qsarLoading ? (
+                    <div className="text-xs text-cyan-500/70 animate-pulse">Running QSAR models on SMILES string...</div>
+                  ) : qsarData ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-xs text-cyan-500/70 uppercase">Predicted Toxicity (LD50)</div>
+                        <div className="text-sm text-cyan-100">{qsarData.toxicityLD50.toFixed(0)} mg/kg</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-cyan-500/70 uppercase">Predicted Solubility</div>
+                        <div className="text-sm text-cyan-100">{qsarData.solubility.toFixed(2)} mg/mL</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-cyan-500/70 uppercase">Predicted Clearance Rates</div>
+                        <div className="text-sm text-cyan-100">{qsarData.clearanceRate.toFixed(2)} mL/min/kg</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-cyan-500/70 uppercase">LogP</div>
+                        <div className="text-sm text-cyan-100">{qsarData.logP.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-cyan-500/70">QSAR data unavailable.</div>
+                  )}
+                </div>
+
                 <div className="md:col-span-2 space-y-2">
                   <label className="flex items-start gap-4 p-4 bg-cyan-950/20 border border-cyan-900/50 rounded-lg cursor-pointer hover:bg-cyan-950/40 transition-colors">
                     <div className="relative mt-1">
@@ -323,14 +548,57 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
               </div>
 
               <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">
-                <button 
-                  type="button"
-                  onClick={onReset}
-                  disabled={loading}
-                  className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" /> Abort & Restart
-                </button>
+                <div className="flex gap-4">
+                  <button 
+                    type="button"
+                    onClick={onReset}
+                    disabled={loading}
+                    className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Abort & Restart
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleResetParams}
+                    disabled={loading}
+                    className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Reset Parameters
+                  </button>
+                  <div className="relative flex items-center">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      ref={fileInputRef}
+                      className="hidden"
+                      id="csv-upload"
+                    />
+                    <label
+                      htmlFor="csv-upload"
+                      className={`px-4 py-2 text-xs uppercase tracking-widest flex items-center gap-2 transition-colors cursor-pointer ${
+                        csvData ? 'text-neon-green hover:text-green-400' : 'text-cyan-500/70 hover:text-cyan-100'
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      {csvData ? 'CSV Loaded' : 'Upload CSV'}
+                    </label>
+                    {csvData && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCsvData(null);
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                          }
+                        }}
+                        className="ml-2 text-xs text-red-400 hover:text-red-300 uppercase tracking-widest"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
                 
                 <button 
                   type="submit"

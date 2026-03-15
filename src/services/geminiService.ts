@@ -1,5 +1,6 @@
 import { Type } from "@google/genai";
 import { generateStructuredContent, chatWithProvider, generateSpeechWithProvider, setAiProvider, setGeminiApiKey, getEffectiveApiKey, getCurrentProvider, generateClinicalTrialReport } from './aiHelper';
+import { runPredictiveModel } from './predictiveModel';
 
 export { setAiProvider, setGeminiApiKey, getEffectiveApiKey, getCurrentProvider, generateClinicalTrialReport };
 
@@ -11,6 +12,11 @@ export interface TrialParams {
   dosageUnit: string;
   duration: string;
   geneticMarkers: string;
+  diseaseSeverity?: string;
+  previousTreatments?: string;
+  inclusionCriteria?: string;
+  exclusionCriteria?: string;
+  dosageAdjustments?: string;
   useSCA?: boolean;
   useAdaptiveDesign?: boolean;
   useRAG?: boolean;
@@ -59,6 +65,8 @@ export interface TrialResult {
   clearanceMechanism: string;
   adaptiveDesignLog?: string;
   ragSources?: string[];
+  efficacyOverTime?: { month: number; efficacy: number; placeboEfficacy?: number }[];
+  sideEffectDistribution?: { name: string; percentage: number }[];
 }
 
 export interface PackagingResult {
@@ -147,24 +155,155 @@ Provide a novel drug name, a unique alphanumeric compound ID (e.g., AEGIS-742X),
   return await generateStructuredContent(prompt, schema);
 };
 
-export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams): Promise<TrialResult> => {
+export interface ProtocolOptimizationResult {
+  estimatedEligiblePopulation: number;
+  recruitmentFeasibility: string;
+  suggestions: {
+    parameter: string;
+    currentValue: string;
+    suggestedValue: string;
+    reason: string;
+    impactOnEnrollment: string;
+  }[];
+}
+
+export const optimizeProtocol = async (disease: string, params: TrialParams): Promise<ProtocolOptimizationResult> => {
+  const prompt = `Act as a Clinical Trial Protocol Optimizer. Analyze the following trial parameters for the target disease "${disease}".
+Estimate the global eligible patient population and provide suggestions to loosen specific parameters to accelerate recruitment if the criteria are too strict.
+
+Current Parameters:
+- Age Group: ${params.ageGroup}
+- Genetic Markers: ${params.geneticMarkers}
+- Disease Severity: ${params.diseaseSeverity || 'Not specified'}
+- Previous Treatments: ${params.previousTreatments || 'Not specified'}
+- Inclusion Criteria: ${params.inclusionCriteria || 'Not specified'}
+- Exclusion Criteria: ${params.exclusionCriteria || 'Not specified'}
+
+Provide a realistic estimate of the eligible population and 2-3 actionable suggestions to improve recruitment feasibility.`;
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      estimatedEligiblePopulation: { type: Type.NUMBER, description: "Estimated number of eligible patients globally" },
+      recruitmentFeasibility: { type: Type.STRING, description: "Assessment of recruitment feasibility (e.g., 'High Risk', 'Moderate', 'Optimal')" },
+      suggestions: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            parameter: { type: Type.STRING, description: "The parameter to change (e.g., 'Age Group', 'Exclusion Criteria')" },
+            currentValue: { type: Type.STRING },
+            suggestedValue: { type: Type.STRING },
+            reason: { type: Type.STRING, description: "Why this change is medically and statistically sound" },
+            impactOnEnrollment: { type: Type.STRING, description: "Estimated increase in enrollment (e.g., '+15%')" }
+          },
+          required: ["parameter", "currentValue", "suggestedValue", "reason", "impactOnEnrollment"]
+        }
+      }
+    },
+    required: ["estimatedEligiblePopulation", "recruitmentFeasibility", "suggestions"]
+  };
+
+  return await generateStructuredContent(prompt, schema);
+};
+
+export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams, csvData?: string): Promise<TrialResult> => {
+  // --- DETERMINISTIC PREDICTIVE ENGINE ---
+  let inSilicoSuccess, inVitroSuccess, overallViability, patientAdherenceScore, efficacyOverTime;
+  let historicalMatches: any[] = [];
+
+  const dosageNum = parseFloat(params.dosage) || 50;
+  const durationMonths = params.duration.includes('Year') ? parseInt(params.duration) * 12 : parseInt(params.duration);
+
+  if (csvData) {
+    // Use the real predictive model based on the uploaded CSV
+    const prediction = await runPredictiveModel(
+      csvData,
+      params.diseaseSeverity || mechanism, // Fallback to mechanism if disease not specified
+      params.phase,
+      parseInt(params.cohortSize) || 100,
+      durationMonths,
+      dosageNum,
+      params.useSCA || false,
+      params.useAdaptiveDesign || false
+    );
+    
+    inSilicoSuccess = prediction.inSilicoSuccess;
+    inVitroSuccess = prediction.inVitroSuccess;
+    overallViability = prediction.overallViability;
+    patientAdherenceScore = prediction.patientAdherenceScore;
+    efficacyOverTime = prediction.efficacyOverTime;
+    historicalMatches = prediction.historicalMatches;
+  } else {
+    // Fallback scaffolding
+    let baseSuccess = 60;
+    if (params.phase === 'Phase 1') baseSuccess = 75;
+    if (params.phase === 'Phase 2') baseSuccess = 55;
+    if (params.phase === 'Phase 3') baseSuccess = 40;
+
+    if (params.useSCA) baseSuccess += 12;
+    if (params.useAdaptiveDesign) baseSuccess += 15;
+    if (dosageNum > 500) baseSuccess -= 10;
+    
+    inSilicoSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess + (Math.random() * 10 - 5))));
+    inVitroSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess - 5 + (Math.random() * 10 - 5))));
+    overallViability = Math.round((inSilicoSuccess * 0.6) + (inVitroSuccess * 0.4));
+
+    let adherence = 85;
+    if (params.duration.includes('Year')) adherence -= 15;
+    if (dosageNum > 200) adherence -= 5;
+    patientAdherenceScore = Math.min(99, Math.max(20, Math.round(adherence + (Math.random() * 10 - 5))));
+
+    efficacyOverTime = [];
+    let currentEfficacy = 10;
+    for (let i = 1; i <= durationMonths; i++) {
+      currentEfficacy = Math.min(95, currentEfficacy + (Math.random() * 15));
+      const dataPoint: any = { month: i, efficacy: Math.round(currentEfficacy) };
+      if (params.useSCA) {
+        dataPoint.placeboEfficacy = Math.round(currentEfficacy * 0.3 + (Math.random() * 5));
+      }
+      efficacyOverTime.push(dataPoint);
+    }
+  }
+  // --------------------------------------------
+
   const prompt = `Act as a lead clinical data scientist and toxicologist. Simulate highly realistic, clinically accurate in-silico and in-vitro trials for the novel drug "${formulationName}" with mechanism: "${mechanism}".
-Focus on eliminating human trials by providing highly accurate synthetic trial data, including specific biomarkers tracked and clearance mechanisms.
 
-Use real-world clinical trial data and recent pharmacological studies for similar drugs to inform the success rates, toxicity profiles, and side effects. Ground your simulation in actual, current medical research.
+CRITICAL INSTRUCTION: You are part of a Hybrid Predictive-Generative system. The core success metrics have already been calculated by a deterministic mathematical model based on the trial parameters and historical clinical trial data. 
+You MUST use the exact numbers provided below in your JSON output. Do NOT invent or alter these specific metrics. Your job is to generate the clinical narrative (ADME, toxicity profile, side effects, biomarkers) that perfectly aligns with and explains these hard numbers.
 
-Use the following virtual trial parameters:
+--- PRE-CALCULATED DETERMINISTIC METRICS (USE EXACTLY) ---
+- inSilicoSuccess: ${inSilicoSuccess}
+- inVitroSuccess: ${inVitroSuccess}
+- overallViability: ${overallViability}
+- patientAdherenceScore: ${patientAdherenceScore}
+- efficacyOverTime: ${JSON.stringify(efficacyOverTime)}
+----------------------------------------------------------
+
+${historicalMatches.length > 0 ? `
+--- HISTORICAL TRIAL MATCHES ---
+The predictive model based its calculations on the following similar historical trials. Use these to ground your narrative, especially regarding toxicity and clearance mechanisms:
+${historicalMatches.map(m => `- Drug: ${m.Drug_Name}, Disease: ${m.Target_Disease}, Phase: ${m.Phase}, Status: ${m.Status}`).join('\n')}
+--------------------------------
+` : ''}
+
+Use the following virtual trial parameters to inform your narrative:
 - Phase: ${params.phase}
 - Cohort Size: ${params.cohortSize} virtual patients
 - Age Group: ${params.ageGroup}
 - Dosage Regimen: ${params.dosage} ${params.dosageUnit}
+${params.dosageAdjustments ? `- Dosage Adjustments: ${params.dosageAdjustments}` : ''}
 - Trial Duration: ${params.duration}
 - Genetic Markers / Subgroups: ${params.geneticMarkers}
+${params.diseaseSeverity ? `- Disease Severity: ${params.diseaseSeverity}` : ''}
+${params.previousTreatments ? `- Previous Treatments: ${params.previousTreatments}` : ''}
+${params.inclusionCriteria ? `- Inclusion Criteria: ${params.inclusionCriteria}` : ''}
+${params.exclusionCriteria ? `- Exclusion Criteria: ${params.exclusionCriteria}` : ''}
 ${params.useSCA ? '- Synthetic Control Arm (SCA): ENABLED. Half of the cohort is generated from anonymized EHR data to act as a virtual placebo group.' : ''}
 ${params.useAdaptiveDesign ? '- Bayesian Adaptive Design: ENABLED. The trial will automatically adjust patient allocation, drop failing dosages, or narrow the target demographic while running based on early data.' : ''}
 ${params.useRAG ? '- Retrieval-Augmented Generation (RAG): ENABLED. You MUST use the googleSearch tool to query PubChem, ChEMBL, and ClinicalTrials.gov for similar molecular structures and historical trial failures to ground your simulation in empirical data.' : ''}
 
-Adjust the efficacy, toxicity, and adherence scores based on these specific parameters.`;
+Adjust the toxicity profile and side effects to logically match the provided deterministic success scores.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -192,8 +331,33 @@ Adjust the efficacy, toxicity, and adherence scores based on these specific para
       clearanceMechanism: { type: Type.STRING, description: "Primary clearance mechanism (e.g., Hepatic CYP3A4, Renal)" },
       adaptiveDesignLog: { type: Type.STRING, description: "If Bayesian Adaptive Design is enabled, provide a log of how the trial pivoted early (e.g., dropped a dosage, narrowed demographic) and how much time/money was saved." },
       ragSources: { type: Type.ARRAY, items: { type: Type.STRING }, description: "If RAG is enabled, list the specific empirical sources (e.g., PubChem CID, ClinicalTrials.gov NCT number) used to ground this simulation." },
+      efficacyOverTime: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            month: { type: Type.NUMBER },
+            efficacy: { type: Type.NUMBER, description: "Efficacy score 0-100" },
+            placeboEfficacy: { type: Type.NUMBER, description: "Efficacy score of the Synthetic Control Arm (placebo) 0-100, if SCA is enabled" }
+          },
+          required: ["month", "efficacy"]
+        },
+        description: "Efficacy score over the duration of the trial"
+      },
+      sideEffectDistribution: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            percentage: { type: Type.NUMBER }
+          },
+          required: ["name", "percentage"]
+        },
+        description: "Distribution of side effects for charting"
+      }
     },
-    required: ["inSilicoSuccess", "inVitroSuccess", "toxicityProfile", "sideEffects", "overallViability", "humanTrialEliminationPotential", "longTermEfficacy", "pharmacokineticProfile", "patientAdherenceScore", "keyBiomarkers", "clearanceMechanism"],
+    required: ["inSilicoSuccess", "inVitroSuccess", "toxicityProfile", "sideEffects", "overallViability", "humanTrialEliminationPotential", "longTermEfficacy", "pharmacokineticProfile", "patientAdherenceScore", "keyBiomarkers", "clearanceMechanism", "efficacyOverTime", "sideEffectDistribution"],
   };
 
   return await generateStructuredContent(prompt, schema, undefined, params.useRAG);

@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Project",
+      "description": "A user's drug discovery project containing formulation, trial, and packaging data.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this project."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the project was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the project was last updated."
+        },
+        "formData": {
+          "type": "string",
+          "description": "JSON stringified form data."
+        },
+        "formulationResult": {
+          "type": "string",
+          "description": "JSON stringified formulation result."
+        },
+        "trialParams": {
+          "type": "string",
+          "description": "JSON stringified trial parameters."
+        },
+        "trialResult": {
+          "type": "string",
+          "description": "JSON stringified trial result."
+        },
+        "packagingResult": {
+          "type": "string",
+          "description": "JSON stringified packaging result."
+        },
+        "step": {
+          "type": "string",
+          "description": "The current step in the application flow."
+        }
+      },
+      "required": ["userId", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": {
+        "$ref": "#/entities/Project"
+      },
+      "description": "Stores user projects."
+    }
+  }
+}

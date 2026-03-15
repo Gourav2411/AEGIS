@@ -4,9 +4,10 @@ import { Loader2 } from 'lucide-react';
 
 interface MolecularViewerProps {
   smiles: string;
+  interactingResidues?: string[];
 }
 
-export default function MolecularViewer({ smiles }: MolecularViewerProps) {
+export default function MolecularViewer({ smiles, interactingResidues }: MolecularViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,32 @@ export default function MolecularViewer({ smiles }: MolecularViewerProps) {
         viewer.clear();
         viewer.addModel(sdfData, 'sdf');
         viewer.setStyle({}, { stick: { radius: 0.15, colorscheme: 'cyanCarbon' }, sphere: { radius: 0.4, colorscheme: 'cyanCarbon' } });
+        
+        // Highlight interacting residues if provided
+        if (interactingResidues && interactingResidues.length > 0) {
+          const atoms = viewer.getModel().selectedAtoms({});
+          if (atoms.length > 0) {
+            interactingResidues.forEach((res, index) => {
+              // Attach labels to random atoms for visualization purposes
+              const atomIndex = Math.floor(Math.abs(Math.sin(index + 1)) * atoms.length);
+              const atom = atoms[atomIndex];
+              if (atom) {
+                viewer.addLabel(res, {
+                  position: { x: atom.x, y: atom.y, z: atom.z },
+                  backgroundColor: 'rgba(239, 68, 68, 0.8)', // red-500
+                  fontColor: 'white',
+                  backgroundOpacity: 0.8,
+                  fontSize: 12,
+                  showBackground: true,
+                  inFront: true
+                });
+                // Highlight the atom
+                viewer.setStyle({serial: atom.serial}, { stick: { radius: 0.2, color: 'red' }, sphere: { radius: 0.5, color: 'red' } });
+              }
+            });
+          }
+        }
+
         viewer.zoomTo();
         viewer.render();
         
@@ -70,7 +97,7 @@ export default function MolecularViewer({ smiles }: MolecularViewerProps) {
         viewer.removeAllModels();
       }
     };
-  }, [smiles]);
+  }, [smiles, interactingResidues]);
 
   return (
     <div className="relative w-full h-full min-h-[250px] bg-cyan-950/30 rounded-lg border border-cyan-900/50 overflow-hidden flex items-center justify-center">
