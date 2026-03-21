@@ -6,6 +6,7 @@ import Markdown from 'react-markdown';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie } from 'recharts';
+import FeedbackWidget from './FeedbackWidget';
 
 interface TrialPanelProps {
   result: TrialResult;
@@ -375,39 +376,72 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
           </div>
         </div>
 
-        {/* Patient Adherence */}
-        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 relative overflow-hidden">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
-              <Users className="w-4 h-4" /> Predicted Patient Adherence
-            </h3>
-          </div>
-          <div className="h-40 w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: 'Adherent', value: result.patientAdherenceScore },
-                    { name: 'Non-Adherent', value: 100 - result.patientAdherenceScore }
-                  ]}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={70}
-                  startAngle={90}
-                  endAngle={-270}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  <Cell fill={result.patientAdherenceScore >= 80 ? '#22c55e' : result.patientAdherenceScore >= 50 ? '#f59e0b' : '#ef4444'} />
-                  <Cell fill="#083344" />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center flex-col">
-              <span className={`text-2xl font-bold ${getScoreColor(result.patientAdherenceScore)}`}>{result.patientAdherenceScore}%</span>
+        {/* Patient Adherence & Side Effects */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Patient Adherence */}
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 relative overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                <Users className="w-4 h-4" /> Predicted Patient Adherence
+              </h3>
+            </div>
+            <div className="h-40 w-full relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Adherent', value: result.patientAdherenceScore },
+                      { name: 'Non-Adherent', value: 100 - result.patientAdherenceScore }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={70}
+                    startAngle={90}
+                    endAngle={-270}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    <Cell fill={result.patientAdherenceScore >= 80 ? '#22c55e' : result.patientAdherenceScore >= 50 ? '#f59e0b' : '#ef4444'} />
+                    <Cell fill="#083344" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center flex-col">
+                <span className={`text-2xl font-bold ${getScoreColor(result.patientAdherenceScore)}`}>{result.patientAdherenceScore}%</span>
+              </div>
             </div>
           </div>
+
+          {/* Side Effect Distribution */}
+          {result.sideEffectDistribution && result.sideEffectDistribution.length > 0 && (
+            <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 relative overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-yellow-400" /> Side Effect Probability
+                </h3>
+              </div>
+              <div className="h-40 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={result.sideEffectDistribution} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#164e63" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#67e8f9', fontSize: 10 }} width={80} />
+                    <Tooltip 
+                      cursor={{ fill: '#164e63', opacity: 0.4 }}
+                      contentStyle={{ backgroundColor: '#083344', borderColor: '#164e63', color: '#cffafe', fontSize: '12px' }}
+                      formatter={(value: number) => [`${value}%`, 'Probability']}
+                    />
+                    <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
+                      {result.sideEffectDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.percentage > 20 ? '#ef4444' : entry.percentage > 10 ? '#f59e0b' : '#22c55e'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Human Trial Elimination */}
@@ -417,6 +451,13 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
           </h3>
           <p className="text-sm text-cyan-100 leading-relaxed">{result.humanTrialEliminationPotential}</p>
         </div>
+
+        {/* Feedback Widget */}
+        <FeedbackWidget 
+          stage="trial" 
+          inputContext={{ formulation, formData, trialParams }} 
+          generatedOutput={result} 
+        />
       </div>
 
       <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">

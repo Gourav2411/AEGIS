@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck, DollarSign, List, Microscope, FileText } from 'lucide-react';
 import { PackagingResult, FormulationResult, TrialParams, TrialResult } from '../services/geminiService';
 import jsPDF from 'jspdf';
+import FeedbackWidget from './FeedbackWidget';
 
 interface PackagingPanelProps {
   result: PackagingResult;
@@ -402,6 +403,12 @@ export default function PackagingPanel({ result, formulation, trialParams, trial
           </div>
         </div>
 
+        {/* Feedback Widget */}
+        <FeedbackWidget 
+          stage="packaging" 
+          inputContext={{ formulation, formData, trialParams, trialResult }} 
+          generatedOutput={result} 
+        />
       </div>
 
       <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">

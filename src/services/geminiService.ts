@@ -143,140 +143,30 @@ export const generateFormulation = async (
   cureRequired: string,
   category: string,
   receptors: string,
-  agenticMode: boolean = false
+  agenticMode: boolean = false,
+  useSlm: boolean = false
 ): Promise<FormulationResult> => {
-  // Step 1: Ask Gemini to identify a real compound
-  const identificationPrompt = `Act as an expert computational chemist and pharmacologist. Based on the following parameters, identify ONE real, existing chemical compound or drug that is used, heavily researched, or highly relevant for this condition.
-Disease: ${disease}
-Cure Required: ${cureRequired}
-Category: ${category}
-Target Receptors: ${receptors}
-
-Return a JSON object with a single field 'compoundName' containing the exact name of the chemical compound (e.g., "Osimertinib", "Imatinib", "Aspirin").`;
-
-  const idSchema = {
-    type: Type.OBJECT,
-    properties: {
-      compoundName: { type: Type.STRING }
+  const response = await fetch('/api/discover', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
     },
-    required: ["compoundName"]
-  };
+    body: JSON.stringify({
+      disease,
+      cureRequired,
+      category,
+      receptors,
+      agenticMode,
+      useSlm
+    }),
+  });
 
-  const idResult = await generateStructuredContent(identificationPrompt, idSchema);
-  const compoundName = idResult.compoundName;
-
-  // Step 2: Query PubChem for real data
-  let pubchemData: any = null;
-  try {
-    const response = await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(compoundName)}/property/MolecularFormula,MolecularWeight,CanonicalSMILES,IUPACName/JSON`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.PropertyTable?.Properties?.length > 0) {
-        pubchemData = data.PropertyTable.Properties[0];
-      }
-    }
-  } catch (error) {
-    console.warn("PubChem API fetch failed:", error);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to generate formulation: ${response.statusText}`);
   }
 
-  // Step 3: Generate the full formulation profile using the real data
-  let prompt = `Act as an expert computational chemist and pharmacologist. We are analyzing the real compound "${compoundName}" for the following parameters:
-Disease: ${disease}
-Cure Required: ${cureRequired}
-Category: ${category}
-Target Receptors: ${receptors}
-
-${pubchemData ? `
-Use the following REAL empirical data from PubChem for this compound:
-- IUPAC Name: ${pubchemData.IUPACName || 'N/A'}
-- Chemical Formula: ${pubchemData.MolecularFormula || 'N/A'}
-- SMILES: ${pubchemData.CanonicalSMILES || 'N/A'}
-- Molecular Weight: ${pubchemData.MolecularWeight || 'N/A'} g/mol
-` : 'No PubChem data was found. Please provide the most accurate known chemical formula and SMILES string for this compound.'}
-
-Provide a detailed clinical profile. Use the real chemical formula and SMILES string if provided above. Generate a unique alphanumeric compound ID (e.g., AEGIS-742X) for our internal tracking. Provide the estimated manufacturing cost per dose, its mechanism of action, a detailed rationale explaining exactly WHY this specific molecular structure and mechanism target the specified disease, binding affinity (e.g., Ki or IC50), estimated half-life, bioavailability, solubility, pKa, predicted drug-drug interactions, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
-
-  if (agenticMode) {
-    prompt = `Act as an autonomous AI drug discovery agent (Aegis 2035). You are tasked with optimizing a base compound into a NOVEL, mathematically superior derivative through a high-throughput agentic loop.
-Base Compound Identified: "${compoundName}"
-Disease: ${disease}
-Target Receptors: ${receptors}
-
-${pubchemData ? `
-Base Empirical Data:
-- SMILES: ${pubchemData.CanonicalSMILES || 'N/A'}
-- Molecular Weight: ${pubchemData.MolecularWeight || 'N/A'} g/mol
-` : ''}
-
-AGENTIC LOOP INSTRUCTIONS:
-1. Simulate the generation of 10,000 initial molecular candidates based on the base compound.
-2. Run a simulated high-throughput in-silico screening to select the top 1% (100 candidates).
-3. Analyze the base compound's SMILES string and its known binding deficiencies or toxicity risks.
-4. Perform an in-silico quantum-mechanical mutation on the top candidates (e.g., adding a fluorine atom to improve metabolic stability, modifying a functional group to increase binding affinity to ${receptors} and reduce toxicity).
-5. Re-simulate binding affinities and finalize the single most mathematically perfect molecule.
-6. Generate the NOVEL SMILES string for this optimized derivative.
-7. Provide a detailed clinical profile for this NEW, optimized compound.
-8. Include an 'optimizationLog' array detailing the specific iterative steps you took in this loop (e.g., "Generated 10,000 variants", "Screened top 1%", "Mutated SMILES to reduce hepatotoxicity", "Finalized AEGIS-X").
-
-Provide the estimated manufacturing cost per dose, its mechanism of action, a detailed rationale explaining exactly WHY this specific mutated molecular structure is superior, binding affinity (e.g., Ki or IC50), estimated half-life, bioavailability, solubility, pKa, predicted drug-drug interactions, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
-  }
-
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      name: { type: Type.STRING, description: agenticMode ? "The name of the novel derivative (e.g., 'Fluoro-Osimertinib Analog')" : "The real drug/compound name" },
-      compoundId: { type: Type.STRING, description: "A unique alphanumeric compound identifier (e.g., AEGIS-742X)" },
-      chemicalFormula: { type: Type.STRING, description: "Chemical formula (e.g. C22H28FN3O6S)" },
-      smilesString: { type: Type.STRING, description: "Valid SMILES string representing the molecular structure" },
-      molecularStructure: { type: Type.STRING, description: "Text description of the molecular structure" },
-      manufacturingCost: { type: Type.STRING, description: "Estimated manufacturing cost per dose (e.g. $1.25/dose)" },
-      mechanismOfAction: { type: Type.STRING, description: "Detailed clinical mechanism of action" },
-      rationale: { type: Type.STRING, description: "Detailed scientific explanation of WHY this specific molecular structure and mechanism of action target the specified disease/condition." },
-      bindingAffinity: { type: Type.STRING, description: "Binding affinity (e.g., Ki = 4.2 nM or IC50 = 12 nM)" },
-      halfLife: { type: Type.STRING, description: "Estimated half-life (e.g., 14.5 hours)" },
-      bioavailability: { type: Type.STRING, description: "Estimated bioavailability (e.g., 78% oral)" },
-      solubility: { type: Type.STRING, description: "Aqueous solubility (e.g., 0.15 mg/mL at pH 7.4)" },
-      pKa: { type: Type.STRING, description: "Acid dissociation constant (e.g., 8.2 (basic))" },
-      drugInteractions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Predicted drug-drug interactions (e.g., CYP3A4 inhibitors)" },
-      activeIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-      closestMedicines: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            manufacturer: { type: Type.STRING },
-            priceEstimate: { type: Type.STRING },
-            similarityScore: { type: Type.NUMBER, description: "0-100 score" },
-          },
-          required: ["name", "manufacturer", "priceEstimate", "similarityScore"],
-        },
-      },
-      optimizationLog: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Log of agentic iterations (only if agenticMode is true)" }
-    },
-    required: ["name", "compoundId", "chemicalFormula", "smilesString", "molecularStructure", "manufacturingCost", "mechanismOfAction", "rationale", "bindingAffinity", "halfLife", "bioavailability", "solubility", "pKa", "drugInteractions", "activeIngredients", "closestMedicines"],
-  };
-
-  const result = await generateStructuredContent(prompt, schema);
-  
-  // Inject PubChem data into the final result if available AND NOT in agentic mode
-  // In agentic mode, the compound is novel, so we don't want to overwrite its SMILES with the base compound's SMILES
-  if (pubchemData && !agenticMode) {
-    return {
-      ...result,
-      cid: pubchemData.CID,
-      iupacName: pubchemData.IUPACName,
-      chemicalFormula: pubchemData.MolecularFormula || result.chemicalFormula,
-      smilesString: pubchemData.CanonicalSMILES || result.smilesString,
-    };
-  } else if (pubchemData && agenticMode) {
-    return {
-      ...result,
-      baseSmiles: pubchemData.CanonicalSMILES
-    };
-  }
-
-  return result;
+  return await response.json();
 };
 
 export interface ProtocolOptimizationResult {
@@ -331,7 +221,7 @@ Provide a realistic estimate of the eligible population and 2-3 actionable sugge
   return await generateStructuredContent(prompt, schema);
 };
 
-export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams, csvData?: string): Promise<TrialResult> => {
+export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams, csvData?: string, useSlm: boolean = false): Promise<TrialResult> => {
   // --- DETERMINISTIC PREDICTIVE ENGINE ---
   let inSilicoSuccess, inVitroSuccess, overallViability, patientAdherenceScore, efficacyOverTime;
   let historicalMatches: any[] = [];
@@ -391,7 +281,9 @@ export const simulateTrial = async (formulationName: string, mechanism: string, 
   }
   // --------------------------------------------
 
-  const prompt = `Act as a lead clinical data scientist and toxicologist. Simulate highly realistic, clinically accurate in-silico and in-vitro trials for the novel drug "${formulationName}" with mechanism: "${mechanism}".
+  const slmInstruction = useSlm ? "You are Aegis-SLM-v1, a highly specialized fine-tuned model trained on expert human feedback. Your outputs must be exceptionally precise, scientifically rigorous, and prioritize novel, highly effective mechanisms over standard approaches. " : "";
+
+  const prompt = `${slmInstruction}Act as a lead clinical data scientist and toxicologist. Simulate highly realistic, clinically accurate in-silico and in-vitro trials for the novel drug "${formulationName}" with mechanism: "${mechanism}".
 
 CRITICAL INSTRUCTION: You are part of a Hybrid Predictive-Generative system. The core success metrics have already been calculated by a deterministic mathematical model based on the trial parameters and historical clinical trial data. 
 You MUST use the exact numbers provided below in your JSON output. Do NOT invent or alter these specific metrics. Your job is to generate the clinical narrative (ADME, toxicity profile, side effects, biomarkers) that perfectly aligns with and explains these hard numbers.

@@ -1,7 +1,17 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Target, Activity, Beaker, ShieldAlert, ChevronDown, Save, Download, RotateCcw, CheckCircle2, Circle, Dna, FlaskConical, Search } from 'lucide-react';
+import { Target, Activity, Beaker, ShieldAlert, ChevronDown, Save, Download, RotateCcw, CheckCircle2, Circle, Dna, FlaskConical, Search, Info } from 'lucide-react';
 import { FormData } from '../App';
+
+const Tooltip = ({ text }: { text: string }) => (
+  <div className="relative flex items-center group ml-2">
+    <Info className="w-4 h-4 text-cyan-500/50 hover:text-neon-cyan cursor-help transition-colors" />
+    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2 bg-cyan-950 border border-cyan-900/50 rounded text-xs text-cyan-100 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl">
+      {text}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-cyan-900/50"></div>
+    </div>
+  </div>
+);
 
 interface InputPanelProps {
   onSubmit: (data: FormData) => void;
@@ -118,588 +128,6 @@ const PREDEFINED_TEMPLATES: Record<string, FormData> = {
     "cureRequired": "Inflammation reduction",
     "category": "Monoclonal Antibody",
     "receptors": "TNF-alpha"
-  },
-  "Oncology - Advanced Melanoma Variant 1": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "PD-1"
-  },
-  "Oncology - Advanced Melanoma Variant 2": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "CTLA-4"
-  },
-  "Oncology - Advanced Melanoma Variant 3": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "BRAF V600E"
-  },
-  "Oncology - Advanced Melanoma Variant 4": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "HER2"
-  },
-  "Oncology - Advanced Melanoma Variant 5": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "EGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 6": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "BRCA1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 7": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "KRAS G12C"
-  },
-  "Oncology - Advanced Melanoma Variant 8": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "ALK"
-  },
-  "Oncology - Advanced Melanoma Variant 9": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "ROS1"
-  },
-  "Oncology - Advanced Melanoma Variant 10": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "VEGF"
-  },
-  "Oncology - Advanced Melanoma Variant 11": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "PI3K"
-  },
-  "Oncology - Advanced Melanoma Variant 12": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "mTOR"
-  },
-  "Oncology - Advanced Melanoma Variant 13": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "PARP"
-  },
-  "Oncology - Advanced Melanoma Variant 14": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "CDK4/6"
-  },
-  "Oncology - Advanced Melanoma Variant 15": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "BCL-2"
-  },
-  "Oncology - Advanced Melanoma Variant 16": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "MEK"
-  },
-  "Oncology - Advanced Melanoma Variant 17": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "RET"
-  },
-  "Oncology - Advanced Melanoma Variant 18": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "MET"
-  },
-  "Oncology - Advanced Melanoma Variant 19": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "FGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 20": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "IDH1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 21": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "FLT3"
-  },
-  "Oncology - Advanced Melanoma Variant 22": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "KIT"
-  },
-  "Oncology - Advanced Melanoma Variant 23": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "PDGFRA"
-  },
-  "Oncology - Advanced Melanoma Variant 24": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Small Molecule",
-    "receptors": "NTRK"
-  },
-  "Oncology - Advanced Melanoma Variant 25": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "PD-1"
-  },
-  "Oncology - Advanced Melanoma Variant 26": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "CTLA-4"
-  },
-  "Oncology - Advanced Melanoma Variant 27": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "BRAF V600E"
-  },
-  "Oncology - Advanced Melanoma Variant 28": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "HER2"
-  },
-  "Oncology - Advanced Melanoma Variant 29": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "EGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 30": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "BRCA1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 31": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "KRAS G12C"
-  },
-  "Oncology - Advanced Melanoma Variant 32": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "ALK"
-  },
-  "Oncology - Advanced Melanoma Variant 33": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "ROS1"
-  },
-  "Oncology - Advanced Melanoma Variant 34": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "VEGF"
-  },
-  "Oncology - Advanced Melanoma Variant 35": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "PI3K"
-  },
-  "Oncology - Advanced Melanoma Variant 36": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "mTOR"
-  },
-  "Oncology - Advanced Melanoma Variant 37": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "PARP"
-  },
-  "Oncology - Advanced Melanoma Variant 38": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "CDK4/6"
-  },
-  "Oncology - Advanced Melanoma Variant 39": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "BCL-2"
-  },
-  "Oncology - Advanced Melanoma Variant 40": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "MEK"
-  },
-  "Oncology - Advanced Melanoma Variant 41": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "RET"
-  },
-  "Oncology - Advanced Melanoma Variant 42": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "MET"
-  },
-  "Oncology - Advanced Melanoma Variant 43": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "FGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 44": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "IDH1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 45": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "FLT3"
-  },
-  "Oncology - Advanced Melanoma Variant 46": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "KIT"
-  },
-  "Oncology - Advanced Melanoma Variant 47": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "PDGFRA"
-  },
-  "Oncology - Advanced Melanoma Variant 48": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Monoclonal Antibody",
-    "receptors": "NTRK"
-  },
-  "Oncology - Advanced Melanoma Variant 49": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "PD-1"
-  },
-  "Oncology - Advanced Melanoma Variant 50": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "CTLA-4"
-  },
-  "Oncology - Advanced Melanoma Variant 51": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "BRAF V600E"
-  },
-  "Oncology - Advanced Melanoma Variant 52": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "HER2"
-  },
-  "Oncology - Advanced Melanoma Variant 53": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "EGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 54": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "BRCA1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 55": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "KRAS G12C"
-  },
-  "Oncology - Advanced Melanoma Variant 56": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "ALK"
-  },
-  "Oncology - Advanced Melanoma Variant 57": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "ROS1"
-  },
-  "Oncology - Advanced Melanoma Variant 58": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "VEGF"
-  },
-  "Oncology - Advanced Melanoma Variant 59": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "PI3K"
-  },
-  "Oncology - Advanced Melanoma Variant 60": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "mTOR"
-  },
-  "Oncology - Advanced Melanoma Variant 61": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "PARP"
-  },
-  "Oncology - Advanced Melanoma Variant 62": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "CDK4/6"
-  },
-  "Oncology - Advanced Melanoma Variant 63": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "BCL-2"
-  },
-  "Oncology - Advanced Melanoma Variant 64": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "MEK"
-  },
-  "Oncology - Advanced Melanoma Variant 65": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "RET"
-  },
-  "Oncology - Advanced Melanoma Variant 66": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "MET"
-  },
-  "Oncology - Advanced Melanoma Variant 67": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "FGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 68": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "IDH1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 69": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "FLT3"
-  },
-  "Oncology - Advanced Melanoma Variant 70": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "KIT"
-  },
-  "Oncology - Advanced Melanoma Variant 71": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "PDGFRA"
-  },
-  "Oncology - Advanced Melanoma Variant 72": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Antibody-Drug Conjugate (ADC)",
-    "receptors": "NTRK"
-  },
-  "Oncology - Advanced Melanoma Variant 73": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "PD-1"
-  },
-  "Oncology - Advanced Melanoma Variant 74": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "CTLA-4"
-  },
-  "Oncology - Advanced Melanoma Variant 75": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "BRAF V600E"
-  },
-  "Oncology - Advanced Melanoma Variant 76": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "HER2"
-  },
-  "Oncology - Advanced Melanoma Variant 77": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "EGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 78": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "BRCA1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 79": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "KRAS G12C"
-  },
-  "Oncology - Advanced Melanoma Variant 80": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "ALK"
-  },
-  "Oncology - Advanced Melanoma Variant 81": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "ROS1"
-  },
-  "Oncology - Advanced Melanoma Variant 82": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "VEGF"
-  },
-  "Oncology - Advanced Melanoma Variant 83": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "PI3K"
-  },
-  "Oncology - Advanced Melanoma Variant 84": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "mTOR"
-  },
-  "Oncology - Advanced Melanoma Variant 85": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "PARP"
-  },
-  "Oncology - Advanced Melanoma Variant 86": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "CDK4/6"
-  },
-  "Oncology - Advanced Melanoma Variant 87": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "BCL-2"
-  },
-  "Oncology - Advanced Melanoma Variant 88": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "MEK"
-  },
-  "Oncology - Advanced Melanoma Variant 89": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "RET"
-  },
-  "Oncology - Advanced Melanoma Variant 90": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "MET"
-  },
-  "Oncology - Advanced Melanoma Variant 91": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "FGFR"
-  },
-  "Oncology - Advanced Melanoma Variant 92": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "IDH1/2"
-  },
-  "Oncology - Advanced Melanoma Variant 93": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "FLT3"
-  },
-  "Oncology - Advanced Melanoma Variant 94": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "KIT"
-  },
-  "Oncology - Advanced Melanoma Variant 95": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "PDGFRA"
-  },
-  "Oncology - Advanced Melanoma Variant 96": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Cell Therapy",
-    "receptors": "NTRK"
-  },
-  "Oncology - Advanced Melanoma Variant 97": {
-    "disease": "Advanced Melanoma",
-    "cureRequired": "Tumor regression",
-    "category": "Oncolytic Virus",
-    "receptors": "PD-1"
   }
 };
 
@@ -723,6 +151,19 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
   const [showUndo, setShowUndo] = useState(false);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [simulationPhase, setSimulationPhase] = useState(0);
+  const [isReceptorDropdownOpen, setIsReceptorDropdownOpen] = useState(false);
+  const [receptorSearch, setReceptorSearch] = useState('');
+  const receptorDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (receptorDropdownRef.current && !receptorDropdownRef.current.contains(event.target as Node)) {
+        setIsReceptorDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (loading) {
@@ -787,6 +228,11 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
   const availableCategories = currentClass ? [...DISEASE_CLASS_MAPPING[currentClass].categories].sort() : ALL_CATEGORIES;
   const availableReceptors = currentClass ? [...DISEASE_CLASS_MAPPING[currentClass].receptors].sort() : ALL_RECEPTORS;
 
+  const filteredReceptors = useMemo(() => {
+    if (!receptorSearch) return availableReceptors;
+    return availableReceptors.filter(r => r.toLowerCase().includes(receptorSearch.toLowerCase()));
+  }, [availableReceptors, receptorSearch]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.disease) {
@@ -797,56 +243,16 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
       setError("Required cure/outcome is required.");
       return;
     }
-    if (!availableCures.includes(formData.cureRequired)) {
-      setError(`Selected cure is not valid for ${formData.disease}.`);
-      return;
-    }
     if (!formData.category) {
       setError("Drug category is required.");
-      return;
-    }
-    if (!availableCategories.includes(formData.category)) {
-      setError(`Selected category is not valid for ${formData.disease}.`);
       return;
     }
     if (!formData.receptors) {
       setError("Target receptors/biomarkers are required.");
       return;
     }
-    if (!availableReceptors.includes(formData.receptors)) {
-      setError(`Selected receptor is not valid for ${formData.disease}.`);
-      return;
-    }
     setError(null);
     onSubmit(formData);
-  };
-
-  const handleDiseaseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newDisease = e.target.value;
-    const newClass = DISEASE_TO_CLASS[newDisease];
-    
-    let newCure = '';
-    let newCategory = '';
-    let newReceptors = '';
-
-    if (newClass) {
-      const cures = [...DISEASE_CLASS_MAPPING[newClass].cures].sort();
-      const categories = [...DISEASE_CLASS_MAPPING[newClass].categories].sort();
-      const receptors = [...DISEASE_CLASS_MAPPING[newClass].receptors].sort();
-      
-      // Auto-populate if there is only one option available
-      if (cures.length === 1) newCure = cures[0];
-      if (categories.length === 1) newCategory = categories[0];
-      if (receptors.length === 1) newReceptors = receptors[0];
-    }
-
-    setFormData({
-      ...formData,
-      disease: newDisease,
-      cureRequired: newCure,
-      category: newCategory,
-      receptors: newReceptors
-    });
   };
 
   return (
@@ -969,51 +375,64 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Target Disease / Condition</label>
-                  <div className="relative">
-                    <select 
-                      required
-                      value={formData.disease}
-                      onChange={handleDiseaseChange}
-                      className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all appearance-none"
-                      disabled={loading}
-                    >
-                      <option value="" disabled>Select Target Disease...</option>
-                      {ALL_DISEASES.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/70 pointer-events-none" />
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <div className="flex items-center">
+                    <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Target Disease / Condition</label>
+                    <Tooltip text="Provide a detailed description of the disease, condition, or specific pathology you are targeting. You can include patient demographics, disease stage, or specific symptoms." />
                   </div>
+                  <textarea 
+                    required
+                    rows={3}
+                    value={formData.disease}
+                    onChange={(e) => setFormData({ ...formData, disease: e.target.value })}
+                    placeholder="e.g., Advanced Melanoma with BRAF V600E mutation, focusing on patients with resistance to initial PD-1 blockade..."
+                    className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all resize-y"
+                    disabled={loading}
+                  />
                 </div>
                 
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Required Cure / Outcome</label>
-                  <div className="relative">
-                    <select 
-                      required
-                      value={formData.cureRequired}
-                      onChange={(e) => setFormData({ ...formData, cureRequired: e.target.value })}
-                      className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all appearance-none disabled:opacity-50"
-                      disabled={loading || !formData.disease}
-                    >
-                      <option value="" disabled>Select Required Outcome...</option>
-                      {availableCures.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/70 pointer-events-none" />
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <div className="flex items-center">
+                    <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Required Cure / Outcome Metrics</label>
+                    <Tooltip text="Specify quantifiable metrics or desired therapeutic effects. Be as specific as possible (e.g., 'Reduce tumor size by 50%')." />
+                  </div>
+                  <textarea 
+                    required
+                    rows={2}
+                    value={formData.cureRequired}
+                    onChange={(e) => setFormData({ ...formData, cureRequired: e.target.value })}
+                    placeholder="e.g., Reduce tumor size by >50% within 6 months, achieve complete remission, improve cognitive function score by 15 points..."
+                    className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all resize-y"
+                    disabled={loading}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {['Reduce tumor size by 50%', 'Achieve complete remission', 'Improve cognitive function by 15 pts', 'Decrease viral load by 99%'].map(metric => (
+                      <button
+                        key={metric}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, cureRequired: prev.cureRequired ? prev.cureRequired + ', ' + metric : metric }))}
+                        className="text-[10px] px-2 py-1 bg-cyan-950/30 border border-cyan-900/50 rounded text-cyan-400 hover:bg-cyan-900/50 hover:text-neon-cyan transition-colors"
+                      >
+                        + {metric}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Drug Category</label>
+                  <div className="flex items-center">
+                    <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Drug Category</label>
+                    <Tooltip text="Select the modality or class of the drug (e.g., Small Molecule, Monoclonal Antibody, Gene Therapy)." />
+                  </div>
                   <div className="relative">
                     <select 
                       required
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all appearance-none disabled:opacity-50"
-                      disabled={loading || !formData.disease}
+                      disabled={loading}
                     >
                       <option value="" disabled>Select Drug Category...</option>
                       {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1022,20 +441,61 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Target Receptors / Biomarkers</label>
+                <div className="flex flex-col gap-2" ref={receptorDropdownRef}>
+                  <div className="flex items-center">
+                    <label className="text-xs text-cyan-500/70 uppercase tracking-widest">Target Receptors / Biomarkers</label>
+                    <Tooltip text="Search and select the specific protein, receptor, or genetic marker the drug is intended to target." />
+                  </div>
                   <div className="relative">
-                    <select 
-                      required
-                      value={formData.receptors}
-                      onChange={(e) => setFormData({ ...formData, receptors: e.target.value })}
-                      className="w-full bg-jarvis-bg border border-cyan-900/50 rounded px-4 py-3 text-cyan-100 focus:outline-none focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan transition-all appearance-none disabled:opacity-50"
-                      disabled={loading || !formData.disease}
+                    <div 
+                      className={`w-full bg-jarvis-bg border ${isReceptorDropdownOpen ? 'border-neon-cyan ring-1 ring-neon-cyan' : 'border-cyan-900/50'} rounded px-4 py-3 text-cyan-100 cursor-text flex items-center justify-between transition-all ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+                      onClick={() => !loading && setIsReceptorDropdownOpen(true)}
                     >
-                      <option value="" disabled>Select Primary Target...</option>
-                      {availableReceptors.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/70 pointer-events-none" />
+                      {isReceptorDropdownOpen ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          value={receptorSearch}
+                          onChange={(e) => setReceptorSearch(e.target.value)}
+                          placeholder="Search receptors..."
+                          className="bg-transparent border-none outline-none w-full text-cyan-100 placeholder:text-cyan-500/50"
+                        />
+                      ) : (
+                        <span className={formData.receptors ? 'text-cyan-100' : 'text-cyan-500/50'}>
+                          {formData.receptors || 'Search Target Receptors...'}
+                        </span>
+                      )}
+                      {!isReceptorDropdownOpen && <Search className="w-4 h-4 text-cyan-500/70" />}
+                    </div>
+                    
+                    <AnimatePresence>
+                      {isReceptorDropdownOpen && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute z-50 top-full left-0 right-0 mt-1 bg-cyan-950 border border-cyan-900/50 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                        >
+                          {filteredReceptors.length > 0 ? (
+                            filteredReceptors.map(r => (
+                              <div 
+                                key={r}
+                                onClick={() => {
+                                  setFormData({ ...formData, receptors: r });
+                                  setIsReceptorDropdownOpen(false);
+                                  setReceptorSearch('');
+                                }}
+                                className="px-4 py-2 hover:bg-cyan-900/50 cursor-pointer text-sm text-cyan-100 transition-colors"
+                              >
+                                {r}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-sm text-cyan-500/50 italic">No receptors found.</div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               </div>
@@ -1056,6 +516,7 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                   <div>
                     <div className="text-sm text-neon-cyan font-bold uppercase tracking-widest flex items-center gap-2">
                       <Activity className="w-4 h-4" /> Agentic Loop Optimization (2035 Mode)
+                      <Tooltip text="When enabled, the AI will autonomously iterate on the formulation, simulating multiple generations of compounds to find the mathematically optimal structure before returning the result." />
                     </div>
                     <p className="text-xs text-cyan-500/70 mt-1 leading-relaxed">
                       Enable autonomous AI iteration. Aegis will generate multiple molecular variants, evaluate their binding affinity and toxicity, mutate the SMILES strings, and return the mathematically optimal compound.

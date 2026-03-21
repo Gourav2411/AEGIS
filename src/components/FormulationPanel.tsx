@@ -4,15 +4,17 @@ import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical,
 import { FormulationResult } from '../services/geminiService';
 import MolecularViewer from './MolecularViewer';
 import InteractionSimulator from './InteractionSimulator';
+import FeedbackWidget from './FeedbackWidget';
 
 interface FormulationPanelProps {
   result: FormulationResult;
   onNext: () => void;
   onReset: () => void;
   loading: boolean;
+  formData: any;
 }
 
-export default function FormulationPanel({ result, onNext, onReset, loading }: FormulationPanelProps) {
+export default function FormulationPanel({ result, onNext, onReset, loading, formData }: FormulationPanelProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -240,6 +242,13 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
             ))}
           </div>
         </div>
+
+        {/* Feedback Widget */}
+        <FeedbackWidget 
+          stage="formulation" 
+          inputContext={formData} 
+          generatedOutput={result} 
+        />
       </div>
 
       <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">

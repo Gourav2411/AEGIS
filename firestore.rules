@@ -10,6 +10,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "gourav.k.24@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -44,9 +50,45 @@ service cloud.firestore {
               request.resource.data[field].size() <= maxLen);
     }
 
+    function isValidOptionalNumber(field, minVal, maxVal) {
+      return !(field in request.resource.data) ||
+             request.resource.data[field] == null ||
+             (request.resource.data[field] is number &&
+              request.resource.data[field] >= minVal &&
+              request.resource.data[field] <= maxVal);
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
+
+    function isValidUserProfile(data) {
+      return hasRequiredFields(['userId', 'email', 'professionCategory', 'updatedAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 200 &&
+             data.professionCategory is string && data.professionCategory.size() > 0 && data.professionCategory.size() < 100 &&
+             data.updatedAt is timestamp &&
+             isValidOptionalString('displayName', 0, 100) &&
+             isValidOptionalNumber('age', 18, 120) &&
+             isValidOptionalString('gender', 0, 50) &&
+             isValidOptionalString('country', 0, 100) &&
+             isValidOptionalString('jobTitle', 0, 100) &&
+             isValidOptionalString('organization', 0, 100) &&
+             isValidOptionalString('professionalDetails', 0, 100000) &&
+             isValidOptionalString('role', 0, 20) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidSlmModel(data) {
+      return hasRequiredFields(['userId', 'modelName', 'status', 'updatedAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.modelName is string && data.modelName.size() > 0 && data.modelName.size() < 100 &&
+             data.status in ['untrained', 'training', 'deployed'] &&
+             data.updatedAt is timestamp &&
+             isValidOptionalNumber('trainingSamples', 0, 1000000) &&
+             isValidOptionalNumber('accuracy', 0, 100) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
 
     function isValidProject(data) {
       return hasRequiredFields(['userId', 'createdAt', 'updatedAt']) &&
@@ -61,6 +103,44 @@ service cloud.firestore {
              isValidOptionalString('step', 0, 100);
     }
 
+    function isValidFeedback(data) {
+      return hasRequiredFields(['userId', 'projectId', 'stage', 'inputContext', 'generatedOutput', 'rating', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 100 &&
+             data.stage is string && data.stage in ['formulation', 'trial', 'packaging'] &&
+             data.inputContext is string && data.inputContext.size() <= 1000000 &&
+             data.generatedOutput is string && data.generatedOutput.size() <= 1000000 &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('comments', 0, 10000);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidUserProfile(request.resource.data) && 
+                       uidUnchanged() &&
+                       (!('role' in request.resource.data) || request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() &&
+                       (isOwner(userId) || isAdmin()) && 
+                       isValidUserProfile(request.resource.data) && 
+                       uidNotModified() &&
+                       areImmutableFieldsUnchanged(['createdAt', 'email']) &&
+                       (isAdmin() || (!('role' in request.resource.data) || request.resource.data.role == resource.data.role));
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /models/{modelId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && 
+                       isValidSlmModel(request.resource.data);
+      allow update: if isAdmin() && 
+                       isValidSlmModel(request.resource.data) && 
+                       areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isAdmin();
+    }
+
     match /projects/{projectId} {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && 
@@ -71,6 +151,19 @@ service cloud.firestore {
                        isValidProject(request.resource.data) && 
                        uidNotModified() &&
                        areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isDocOwner();
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidFeedback(request.resource.data) && 
+                       uidUnchanged();
+      allow update: if isDocOwner() && 
+                       isValidFeedback(request.resource.data) && 
+                       uidNotModified() &&
+                       areImmutableFieldsUnchanged(['createdAt', 'projectId', 'stage', 'inputContext', 'generatedOutput']);
       allow delete: if isDocOwner();
     }
   }
