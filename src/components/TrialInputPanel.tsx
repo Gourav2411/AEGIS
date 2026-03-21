@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Activity, Users, Clock, Dna, Syringe, RefreshCw, ChevronRight, CheckCircle2, Circle, Database, Search, Beaker, Zap, AlertTriangle, Upload } from 'lucide-react';
-import { FormulationResult, TrialParams, optimizeProtocol, ProtocolOptimizationResult } from '../services/geminiService';
+import { FormulationResult, TrialParams, optimizeProtocol, ProtocolOptimizationResult, connectToLiveEHR } from '../services/geminiService';
 
 interface TrialInputPanelProps {
   formulation: FormulationResult;
@@ -41,6 +41,9 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
   const [qsarLoading, setQsarLoading] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<ProtocolOptimizationResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
+  const [liveEHRConnecting, setLiveEHRConnecting] = useState(false);
+  const [liveEHRConnected, setLiveEHRConnected] = useState(false);
+  const [liveEHRRecords, setLiveEHRRecords] = useState(0);
 
   useEffect(() => {
     const fetchQsar = async () => {
@@ -94,7 +97,63 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
   const handleResetParams = () => {
     setParams(defaultParams);
     setOptimizationResult(null);
+    setLiveEHRConnected(false);
+    setLiveEHRRecords(0);
   };
+
+  const handleConnectLiveEHR = async () => {
+    setLiveEHRConnecting(true);
+    let records = 0;
+    const interval = setInterval(() => {
+      records += Math.floor(Math.random() * 5000) + 1000;
+      setLiveEHRRecords(records);
+    }, 200);
+
+    try {
+      const finalRecords = await connectToLiveEHR(disease, params);
+      clearInterval(interval);
+      setLiveEHRConnecting(false);
+      setLiveEHRConnected(true);
+      setLiveEHRRecords(finalRecords);
+    } catch (error) {
+      clearInterval(interval);
+      setLiveEHRConnecting(false);
+      console.error("Failed to connect to live EHR", error);
+    }
+  };
+
+  useEffect(() => {
+    const isAgentic = !!formulation.optimizationLog;
+    const isEHR = liveEHRConnected;
+
+    if (isAgentic || isEHR) {
+      let newPhase = 'Phase 2';
+      let newCohortSize = '500';
+      let newDuration = '6 Months';
+
+      if (isAgentic && isEHR) {
+        newPhase = 'Phase 3';
+        newCohortSize = '50000';
+        newDuration = '1 Month';
+      } else if (isAgentic) {
+        newPhase = 'Phase 3';
+        newCohortSize = '5000';
+        newDuration = '3 Months';
+      } else if (isEHR) {
+        newPhase = 'Phase 2';
+        newCohortSize = '50000';
+        newDuration = '1 Month';
+      }
+
+      setParams(prev => ({
+        ...prev,
+        phase: newPhase,
+        cohortSize: newCohortSize,
+        duration: newDuration,
+        useAdaptiveDesign: true
+      }));
+    }
+  }, [formulation.optimizationLog, liveEHRConnected]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +178,10 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
       return;
     }
     setError(null);
-    onSimulate(params);
+    onSimulate({
+      ...params,
+      liveEHRRecords: liveEHRConnected ? liveEHRRecords : undefined
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,6 +282,7 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                   {error}
                 </div>
               )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 <div className="space-y-2">
@@ -309,6 +372,7 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                     className="w-full bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-3 text-cyan-100 focus:border-neon-cyan focus:outline-none transition-colors appearance-none"
                   >
                     <option value="1 Month">1 Month</option>
+                    <option value="3 Months">3 Months</option>
                     <option value="6 Months">6 Months</option>
                     <option value="1 Year">1 Year</option>
                     <option value="5 Years">5 Years</option>
@@ -498,6 +562,56 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                       </p>
                     </div>
                   </label>
+                  
+                  <AnimatePresence>
+                    {params.useSCA && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 p-4 bg-cyan-950/30 border border-cyan-900/50 rounded-lg flex flex-col gap-3">
+                          <div className="flex justify-between items-center">
+                            <div className="text-sm text-neon-cyan uppercase tracking-widest font-bold flex items-center gap-2">
+                              <Zap className="w-4 h-4" /> Live EHR & Genomic Networks
+                            </div>
+                            {!liveEHRConnected && !liveEHRConnecting && (
+                              <button
+                                type="button"
+                                onClick={handleConnectLiveEHR}
+                                className="px-3 py-1.5 bg-cyan-900/50 hover:bg-neon-cyan hover:text-jarvis-bg text-neon-cyan text-xs uppercase tracking-widest rounded transition-colors"
+                              >
+                                Connect to TriNetX / Datavant
+                              </button>
+                            )}
+                          </div>
+                          
+                          <p className="text-xs text-cyan-500/70">
+                            Connect to live, anonymized multi-omics and EHR networks to pull real-time patient data for the control arm.
+                          </p>
+
+                          {(liveEHRConnecting || liveEHRConnected) && (
+                            <div className="bg-jarvis-bg p-3 rounded border border-cyan-900/30 font-mono text-xs">
+                              {liveEHRConnecting && (
+                                <div className="text-cyan-500/70 animate-pulse mb-1">
+                                  Establishing secure connection to federated EHR networks...
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center">
+                                <span className={liveEHRConnected ? 'text-neon-green' : 'text-cyan-100'}>
+                                  {liveEHRConnected ? 'Connection Established. Live Data Stream Active.' : 'Mining anonymized patient records...'}
+                                </span>
+                                <span className="text-neon-cyan font-bold">
+                                  {liveEHRRecords.toLocaleString()} records matched
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="md:col-span-2 space-y-2">

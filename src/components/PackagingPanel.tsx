@@ -1,14 +1,220 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck, DollarSign, List, Microscope } from 'lucide-react';
-import { PackagingResult } from '../services/geminiService';
+import { Package, Thermometer, ShieldCheck, Globe, RefreshCw, Box, Layers, CheckCircle2, Clock, FileCheck, DollarSign, List, Microscope, FileText } from 'lucide-react';
+import { PackagingResult, FormulationResult, TrialParams, TrialResult } from '../services/geminiService';
+import jsPDF from 'jspdf';
 
 interface PackagingPanelProps {
   result: PackagingResult;
+  formulation: FormulationResult | null;
+  trialParams: TrialParams | null;
+  trialResult: TrialResult | null;
+  formData: any;
   onReset: () => void;
 }
 
-export default function PackagingPanel({ result, onReset }: PackagingPanelProps) {
+export default function PackagingPanel({ result, formulation, trialParams, trialResult, formData, onReset }: PackagingPanelProps) {
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+
+  const handleExportHypothesis = () => {
+    if (!formulation || !trialResult || !trialParams) return;
+    setGeneratingPDF(true);
+    
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Helper for centered text
+      const centerText = (text: string, y: number, size: number = 12) => {
+        doc.setFontSize(size);
+        const textWidth = doc.getStringUnitWidth(text) * size / doc.internal.scaleFactor;
+        const x = (pageWidth - textWidth) / 2;
+        doc.text(text, x, y);
+      };
+
+      // Cover Page
+      doc.setFont("helvetica", "bold");
+      centerText("COMPUTATIONAL DRUG CANDIDATE HYPOTHESIS", 40, 20);
+      centerText("FOR EXPERIMENTAL VALIDATION", 50, 14);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(150, 150, 150);
+      centerText("We used AI-assisted virtual screening to generate a prioritized drug candidate hypothesis for experimental validation.", 65, 10);
+      doc.setTextColor(0, 0, 0);
+      
+      doc.setFontSize(12);
+      doc.text(`Sponsor: Aegis Autonomous Drug Discovery`, 20, 80);
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 90);
+      doc.text(`Investigational Drug: ${formulation.name}`, 20, 100);
+      doc.text(`Indication: ${formData?.disease || 'N/A'}`, 20, 110);
+      doc.text(`Compound ID: ${formulation.compoundId}`, 20, 120);
+
+      // Module 2: Summaries
+      doc.addPage();
+      doc.setFont("helvetica", "bold");
+      doc.text("Module 2: Summaries", 20, 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Mechanism of Action:`, 20, 35);
+      const moaLines = doc.splitTextToSize(formulation.mechanismOfAction, pageWidth - 40);
+      doc.text(moaLines, 20, 45);
+
+      // Module 3: Quality
+      doc.addPage();
+      doc.setFont("helvetica", "bold");
+      doc.text("Module 3: Quality (CMC)", 20, 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Chemical Formula: ${formulation.chemicalFormula}`, 20, 35);
+      doc.text(`SMILES:`, 20, 45);
+      const smilesStr = formulation.smilesString || formulation.molecularStructure || 'N/A';
+      const smilesLines = doc.splitTextToSize(smilesStr, pageWidth - 40);
+      doc.text(smilesLines, 20, 55);
+      
+      let yPos = 55 + (smilesLines.length * 7) + 10;
+      doc.text(`Binding Affinity: ${formulation.bindingAffinity}`, 20, yPos);
+      doc.text(`Half-Life: ${formulation.halfLife}`, 20, yPos + 10);
+      doc.text(`Bioavailability: ${formulation.bioavailability}`, 20, yPos + 20);
+      doc.text(`Solubility: ${formulation.solubility}`, 20, yPos + 30);
+
+      // Module 4 & 5: Clinical
+      doc.addPage();
+      doc.setFont("helvetica", "bold");
+      doc.text("Module 5: Clinical Study Reports", 20, 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Trial Phase: ${trialParams.phase}`, 20, 35);
+      doc.text(`Cohort Size: ${trialParams.cohortSize}`, 20, 45);
+      doc.text(`Duration: ${trialParams.duration}`, 20, 55);
+      doc.text(`Dosage: ${trialParams.dosage} ${trialParams.dosageUnit}`, 20, 65);
+      
+      let clinY = 85;
+      
+      if (trialParams.useSCA) {
+        doc.setFont("helvetica", "bold");
+        doc.text(`Synthetic Control Arm (SCA): ENABLED`, 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+        if (trialParams.liveEHRRecords) {
+          doc.text(`Live EHR Network: Pulled ${trialParams.liveEHRRecords.toLocaleString()} records for statistical validation.`, 20, clinY);
+          clinY += 10;
+        }
+      }
+      
+      if (trialParams.useAdaptiveDesign) {
+        doc.setFont("helvetica", "bold");
+        doc.text(`Bayesian Adaptive Design: ENABLED`, 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+      }
+      
+      if (trialParams.useRAG) {
+        doc.setFont("helvetica", "bold");
+        doc.text(`Real-World Grounding (RAG): ENABLED`, 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+      }
+
+      clinY += 10;
+      doc.text(`Overall Viability: ${trialResult.overallViability}%`, 20, clinY);
+      doc.text(`In-Silico Success: ${trialResult.inSilicoSuccess}%`, 20, clinY + 10);
+      doc.text(`In-Vitro Success: ${trialResult.inVitroSuccess}%`, 20, clinY + 20);
+      
+      if (trialResult.statisticalConfidence) {
+        doc.text(`Statistical Confidence: ${trialResult.statisticalConfidence}%`, 20, clinY + 30);
+      }
+      if (trialResult.costSavingsEstimate) {
+        doc.text(`Estimated Cost Savings: ${trialResult.costSavingsEstimate}`, 20, clinY + 40);
+      }
+      if (trialResult.timeSavedEstimate) {
+        doc.text(`Estimated Time Saved: ${trialResult.timeSavedEstimate}`, 20, clinY + 50);
+      }
+      
+      clinY += 60;
+      doc.text(`Toxicity Profile:`, 20, clinY);
+      const toxLines = doc.splitTextToSize(trialResult.toxicityProfile, pageWidth - 40);
+      doc.text(toxLines, 20, clinY + 10);
+      
+      if (trialResult.subgroupAnalysis && trialResult.subgroupAnalysis.length > 0) {
+        clinY += (toxLines.length * 7) + 20;
+        doc.setFont("helvetica", "bold");
+        doc.text(`Subgroup Analysis:`, 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+        trialResult.subgroupAnalysis.forEach((group) => {
+          doc.text(`- ${group.group}: ${group.efficacy}% efficacy (n=${group.sampleSize})`, 25, clinY);
+          clinY += 10;
+        });
+      }
+
+      // Module 3: Quality (Packaging & Logistics)
+      doc.addPage();
+      doc.setFont("helvetica", "bold");
+      doc.text("Module 3: Quality (Packaging & Logistics)", 20, 20);
+      doc.setFont("helvetica", "normal");
+      
+      let packY = 35;
+      doc.text(`Primary Packaging:`, 20, packY);
+      const primLines = doc.splitTextToSize(result.primaryPackaging, pageWidth - 40);
+      doc.text(primLines, 20, packY + 10);
+      
+      packY += (primLines.length * 7) + 15;
+      doc.text(`Secondary Packaging:`, 20, packY);
+      const secLines = doc.splitTextToSize(result.secondaryPackaging, pageWidth - 40);
+      doc.text(secLines, 20, packY + 10);
+      
+      packY += (secLines.length * 7) + 15;
+      doc.text(`Temperature Control:`, 20, packY);
+      const tempLines = doc.splitTextToSize(result.temperatureControl, pageWidth - 40);
+      doc.text(tempLines, 20, packY + 10);
+      
+      packY += (tempLines.length * 7) + 15;
+      doc.text(`Distribution Plan:`, 20, packY);
+      const distLines = doc.splitTextToSize(result.distributionPlan, pageWidth - 40);
+      doc.text(distLines, 20, packY + 10);
+      
+      packY += (distLines.length * 7) + 15;
+      doc.text(`Vial Type: ${result.vialType}`, 20, packY);
+      doc.text(`Stopper Type: ${result.stopperType}`, 20, packY + 10);
+      doc.text(`Seal Type: ${result.sealType}`, 20, packY + 20);
+      doc.text(`Shelf Life: ${result.shelfLife}`, 20, packY + 30);
+
+      if (result.sources && result.sources.length > 0) {
+        doc.addPage();
+        doc.setFont("helvetica", "bold");
+        doc.text("Module 3: Premium Packaging Suppliers", 20, 20);
+        doc.setFont("helvetica", "normal");
+        
+        let sourceY = 35;
+        result.sources.forEach((source, idx) => {
+          doc.setFont("helvetica", "bold");
+          doc.text(`${idx + 1}. ${source.name} (${source.location})`, 20, sourceY);
+          doc.setFont("helvetica", "normal");
+          sourceY += 10;
+          
+          const descLines = doc.splitTextToSize(`Description: ${source.description}`, pageWidth - 40);
+          doc.text(descLines, 20, sourceY);
+          sourceY += (descLines.length * 7) + 5;
+          
+          const specLines = doc.splitTextToSize(`Specialty: ${source.specialty}`, pageWidth - 40);
+          doc.text(specLines, 20, sourceY);
+          sourceY += (specLines.length * 7) + 10;
+          
+          if (sourceY > 250) {
+            doc.addPage();
+            sourceY = 20;
+          }
+        });
+      }
+
+      // Save
+      doc.save(`Hypothesis_${formulation.name.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+      alert("Failed to generate PDF. See console for details.");
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -131,6 +337,30 @@ export default function PackagingPanel({ result, onReset }: PackagingPanelProps)
           </div>
         </div>
 
+        {/* Premium Suppliers */}
+        {result.sources && result.sources.length > 0 && (
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-400" /> Premium Packaging Suppliers
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {result.sources.map((source, idx) => (
+                <div key={idx} className="bg-jarvis-bg border border-cyan-900/30 rounded p-4 flex flex-col gap-2">
+                  <div className="flex justify-between items-start">
+                    <h4 className="text-sm font-bold text-neon-cyan">{source.name}</h4>
+                    <span className="text-[10px] bg-cyan-900/50 text-cyan-300 px-2 py-0.5 rounded uppercase tracking-wider">{source.location}</span>
+                  </div>
+                  <p className="text-xs text-cyan-100 leading-relaxed">{source.description}</p>
+                  <div className="mt-auto pt-2 border-t border-cyan-900/30">
+                    <span className="text-[10px] text-cyan-500/70 uppercase tracking-widest">Specialty:</span>
+                    <p className="text-xs text-cyan-300 mt-1">{source.specialty}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Cost Analysis */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
           <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -182,15 +412,29 @@ export default function PackagingPanel({ result, onReset }: PackagingPanelProps)
           <RefreshCw className="w-3 h-3" /> Initialize New Protocol
         </button>
         
-        <button 
-          className="group relative px-6 py-3 bg-neon-green/20 border border-neon-green text-neon-green text-sm uppercase tracking-widest hover:bg-neon-green hover:text-jarvis-bg transition-all overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-neon-green/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
-          <span className="relative flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            Deploy to Manufacturing
-          </span>
-        </button>
+        <div className="flex gap-4">
+          <button 
+            onClick={handleExportHypothesis}
+            disabled={generatingPDF}
+            className="group relative px-6 py-3 bg-cyan-900/20 border border-neon-cyan text-neon-cyan text-sm uppercase tracking-widest hover:bg-neon-cyan hover:text-jarvis-bg transition-all overflow-hidden disabled:opacity-50"
+          >
+            <div className="absolute inset-0 bg-neon-cyan/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+            <span className="relative flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              {generatingPDF ? 'Generating PDF...' : 'Export Hypothesis'}
+            </span>
+          </button>
+
+          <button 
+            className="group relative px-6 py-3 bg-neon-green/20 border border-neon-green text-neon-green text-sm uppercase tracking-widest hover:bg-neon-green hover:text-jarvis-bg transition-all overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-neon-green/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+            <span className="relative flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              Deploy to Manufacturing
+            </span>
+          </button>
+        </div>
       </div>
     </motion.div>
   );

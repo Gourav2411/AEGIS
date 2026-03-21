@@ -18,7 +18,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
       setSimulationPhase(0);
       const interval = setInterval(() => {
         setSimulationPhase(prev => (prev < 4 ? prev + 1 : prev));
-      }, 2000); // Change phase every 2 seconds
+      }, 2500); // Change phase every 2.5 seconds for smoother reading
       return () => clearInterval(interval);
     } else {
       setSimulationPhase(0);
@@ -29,7 +29,7 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
   const ringAnimation = {
     rotate: [0, 360],
     transition: {
-      duration: loading ? 2 : 20,
+      duration: loading ? 4 : 20,
       repeat: Infinity,
       ease: "linear" as const
     }
@@ -38,10 +38,16 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
   const reverseRingAnimation = {
     rotate: [360, 0],
     transition: {
-      duration: loading ? 3 : 25,
+      duration: loading ? 5 : 25,
       repeat: Infinity,
       ease: "linear" as const
     }
+  };
+
+  const phaseVariants: any = {
+    initial: { opacity: 0, y: 15, scale: 0.9, filter: 'blur(4px)' },
+    animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transition: { duration: 0.8, ease: "easeOut" } },
+    exit: { opacity: 0, y: -15, scale: 0.9, filter: 'blur(4px)', transition: { duration: 0.6, ease: "easeIn" } }
   };
 
   return (
@@ -90,31 +96,31 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
           <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
             <AnimatePresence mode="wait">
               {simulationPhase === 0 && (
-                <motion.div key="phase0" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-cyan-400">
+                <motion.div key="phase0" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-cyan-400 absolute">
                   <Target className="w-12 h-12 mb-2 animate-pulse" />
                   <span className="text-[10px] uppercase tracking-widest text-center">Target ID</span>
                 </motion.div>
               )}
               {simulationPhase === 1 && (
-                <motion.div key="phase1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-purple-400">
-                  <Search className="w-12 h-12 mb-2 animate-ping" />
+                <motion.div key="phase1" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-purple-400 absolute">
+                  <Search className="w-12 h-12 mb-2 animate-ping" style={{ animationDuration: '2s' }} />
                   <span className="text-[10px] uppercase tracking-widest text-center">Screening</span>
                 </motion.div>
               )}
               {simulationPhase === 2 && (
-                <motion.div key="phase2" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-yellow-400">
+                <motion.div key="phase2" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-yellow-400 absolute">
                   <Dna className="w-12 h-12 mb-2 animate-spin-slow" />
                   <span className="text-[10px] uppercase tracking-widest text-center">Optimization</span>
                 </motion.div>
               )}
               {simulationPhase === 3 && (
-                <motion.div key="phase3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-blue-400">
-                  <FlaskConical className="w-12 h-12 mb-2 animate-bounce" />
+                <motion.div key="phase3" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-blue-400 absolute">
+                  <FlaskConical className="w-12 h-12 mb-2 animate-bounce" style={{ animationDuration: '2s' }} />
                   <span className="text-[10px] uppercase tracking-widest text-center">Formulation</span>
                 </motion.div>
               )}
               {simulationPhase === 4 && (
-                <motion.div key="phase4" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-green-400">
+                <motion.div key="phase4" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-green-400 absolute">
                   <CheckCircle2 className="w-12 h-12 mb-2" />
                   <span className="text-[10px] uppercase tracking-widest text-center">Synthesis Complete</span>
                 </motion.div>
@@ -177,32 +183,32 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
           <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
             <AnimatePresence mode="wait">
               {simulationPhase === 0 && (
-                <motion.div key="phase0" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-cyan-400">
+                <motion.div key="phase0" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-cyan-400 absolute">
                   <Network className="w-12 h-12 mb-2 animate-pulse" />
                   <span className="text-[10px] uppercase tracking-widest text-center">In-Silico Docking</span>
                 </motion.div>
               )}
               {simulationPhase === 1 && (
-                <motion.div key="phase1" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-green-400">
-                  <Beaker className="w-12 h-12 mb-2 animate-bounce" />
+                <motion.div key="phase1" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-green-400 absolute">
+                  <Beaker className="w-12 h-12 mb-2 animate-bounce" style={{ animationDuration: '2s' }} />
                   <span className="text-[10px] uppercase tracking-widest text-center">In-Vitro Cell Cultures</span>
                 </motion.div>
               )}
               {simulationPhase === 2 && (
-                <motion.div key="phase2" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-yellow-400">
-                  <ShieldAlert className="w-12 h-12 mb-2" style={{ animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+                <motion.div key="phase2" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-yellow-400 absolute">
+                  <ShieldAlert className="w-12 h-12 mb-2" style={{ animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
                   <span className="text-[10px] uppercase tracking-widest text-center">Toxicity Screening</span>
                 </motion.div>
               )}
               {simulationPhase === 3 && (
-                <motion.div key="phase3" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-purple-400">
+                <motion.div key="phase3" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-purple-400 absolute">
                   <Activity className="w-12 h-12 mb-2 animate-pulse" />
                   <span className="text-[10px] uppercase tracking-widest text-center">Pharmacokinetics</span>
                 </motion.div>
               )}
               {simulationPhase === 4 && (
-                <motion.div key="phase4" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="flex flex-col items-center text-neon-cyan">
-                  <Dna className="w-12 h-12 mb-2 animate-spin" style={{ animationDuration: '3s' }} />
+                <motion.div key="phase4" variants={phaseVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center text-neon-cyan absolute">
+                  <Dna className="w-12 h-12 mb-2 animate-spin" style={{ animationDuration: '4s' }} />
                   <span className="text-[10px] uppercase tracking-widest text-center">Data Aggregation</span>
                 </motion.div>
               )}
@@ -318,17 +324,18 @@ export default function Visualizer({ step, loading, trialResult }: VisualizerPro
       {/* Data streams (simulated) */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {[...Array(8)].map((_, i) => (
+          {[...Array(12)].map((_, i) => (
             <motion.div
               key={i}
               className="absolute w-1 h-1 bg-neon-cyan rounded-full"
-              initial={{ x: 0, y: 0, opacity: 1 }}
+              initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
               animate={{ 
-                x: (Math.random() - 0.5) * 200, 
-                y: (Math.random() - 0.5) * 200,
-                opacity: 0
+                x: (Math.random() - 0.5) * 250, 
+                y: (Math.random() - 0.5) * 250,
+                opacity: [0, 1, 0],
+                scale: [0, 1.5, 0]
               }}
-              transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
+              transition={{ duration: 1.5 + Math.random(), repeat: Infinity, delay: Math.random() * 2, ease: "easeInOut" }}
             />
           ))}
         </div>

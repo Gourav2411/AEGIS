@@ -146,13 +146,17 @@ export const generateStructuredContent = async (prompt: string, schema: any, sys
   }
 };
 
-export const chatWithProvider = async (message: string, useDeepThink: boolean, useDeepSearch: boolean, history: { role: string, parts: { text: string }[] }[]): Promise<string> => {
+export const chatWithProvider = async (message: string, useDeepThink: boolean, useDeepSearch: boolean, history: { role: string, parts: { text: string }[] }[], appContext?: string): Promise<string> => {
   const key = getEffectiveApiKey();
   if (key === 'missing-key') {
     throw new Error("API Key is missing.");
   }
 
-  const systemInstruction = "You are Aegis, an advanced AI drug discovery assistant. You are helpful, scientific, concise, and communicate with a slightly robotic, highly intelligent tone. You assist users in understanding drug formulations, trials, and supply chains.";
+  let systemInstruction = "You are Aegis, an advanced AI drug discovery assistant. You are helpful, scientific, concise, and communicate with a slightly robotic, highly intelligent tone. You assist users in understanding drug formulations, trials, and supply chains.";
+  
+  if (appContext) {
+    systemInstruction += "\n\n" + appContext;
+  }
 
   if (currentProvider === 'gemini') {
     const ai = new GoogleGenAI({ apiKey: key });
@@ -266,19 +270,29 @@ export const generateClinicalTrialReport = async (
     throw new Error("API Key is missing. Please configure it in the settings.");
   }
 
-  const prompt = `Act as a Lead Clinical Investigator and Medical Writer. Generate a comprehensive, professional Clinical Study Report (CSR) for the drug candidate ${formulation.name}.
+  const prompt = `Act as a Lead Clinical Investigator and Medical Writer. Generate a comprehensive, professional Computational Drug Candidate Hypothesis for the drug candidate ${formulation.name}.
   
-  The report should be formatted in Markdown and look like a real-life clinical trial document. Include the following sections:
-  1. Title Page (Drug Name, Indication, Phase, Date)
-  2. Synopsis (Brief summary of the drug and trial results)
-  3. Investigational Plan (Based on the target disease: ${formData.disease}, Cure Type: ${formData.cureType}, Receptor: ${formData.receptor})
-  4. Formulation Details (Mechanism of Action, Target Receptors, Molecular Weight, LogP, etc.)
-  5. Efficacy Evaluation (In-Silico Success: ${trialResult.inSilicoSuccess}%, In-Vitro Success: ${trialResult.inVitroSuccess}%, Long-Term Efficacy)
-  6. Safety Evaluation (Toxicity Profile, Side Effects, Clearance Mechanism)
-  7. Pharmacokinetic Profile (Absorption, Distribution, Metabolism, Excretion)
-  8. Discussion and Overall Conclusions (Viability Score: ${trialResult.overallViability}%, Human Trial Elimination Potential)
-  ${trialParams?.useSCA ? `9. Synthetic Control Arm (SCA) Analysis (Detail how the virtual placebo group generated from EHR data accelerated the trial and reduced costs, replacing ${Number(trialParams.cohortSize) / 2} human subjects)` : ''}
-  ${trialParams?.useAdaptiveDesign ? `10. Bayesian Adaptive Design Log (Detail how the trial pivoted early, such as dropping failing dosages or narrowing the target demographic, based on this log: ${trialResult.adaptiveDesignLog})` : ''}
+  CRITICAL FRAMING: This is a computational hypothesis, NOT a clinical study report. Do not call it a CSR or IND. The correct framing is: "We used AI-assisted virtual screening to generate a prioritized drug candidate hypothesis for experimental validation." Include this exact disclaimer at the beginning of the document.
+  
+  The report should be formatted in Markdown and look like a real-life scientific document. Include the following sections, detailing a rigorous 5-stage plan for experimental validation:
+  
+  1. Title Page (Drug Name, Indication, Phase Hypothesis, Date)
+  2. Synopsis (Brief summary of the drug and virtual screening results)
+  3. Stage 0: Fixing the Foundation (SMILES validation, RDKit/ChemDraw 2D/3D structure generation, database checks against ChEMBL/PubChem, IP position and CAS registry)
+  4. Stage 1: Computational Validation (Molecular Docking with MM-GBSA rescoring, Selectivity panel, MD Simulations, ADMET Prediction including hERG IC50 modeling, Off-Target Liability Screening)
+  5. Stage 2: Synthesis and Early Characterization (Synthetic Route Design, Analytical Characterization including NMR/HRMS/HPLC, Physical-Chemical Properties measurement)
+  6. Stage 3: In Vitro Biology (Biochemical Assays confirming IC50, Cell-Based Efficacy Assays, ADMET In Vitro Panel including CYP inhibition and hERG electrophysiology)
+  7. Stage 4: In Vivo Preclinical Studies (PK Studies in Rodents, Efficacy in Xenograft Models, Regulatory Toxicology - GLP Studies)
+  8. Stage 5: The Real IND Application (Module 2: Non-Clinical Overview, Module 3: CMC, Module 4: Non-Clinical Study Reports, Module 5: Clinical Protocol)
+  
+  Incorporate the following specific data into the relevant stages:
+  - Target disease: ${formData.disease}, Cure Type: ${formData.cureType}, Receptor: ${formData.receptor}
+  - Efficacy Evaluation: In-Silico Success: ${trialResult.inSilicoSuccess}%, In-Vitro Success: ${trialResult.inVitroSuccess}%
+  - Viability Score: ${trialResult.overallViability}%, Statistical Confidence: ${trialResult.statisticalConfidence}%
+  - Estimated Cost Savings: ${trialResult.costSavingsEstimate}, Estimated Time Saved: ${trialResult.timeSavedEstimate}
+  - Subgroup Analysis: ${JSON.stringify(trialResult.subgroupAnalysis)}
+  ${trialParams?.useSCA ? `- Synthetic Control Arm (SCA) Analysis: Detail how the virtual placebo group generated from EHR data accelerated the trial and reduced costs, replacing ${Number(trialParams.cohortSize) / 2} human subjects` : ''}
+  ${trialParams?.useAdaptiveDesign ? `- Bayesian Adaptive Design Log: Detail how the trial pivoted early based on this log: ${trialResult.adaptiveDesignLog}` : ''}
   
   ${trialParams?.useRAG ? `CRITICAL INSTRUCTION: You MUST use the googleSearch tool to query PubChem, ChEMBL, and ClinicalTrials.gov for similar molecular structures and historical trial failures. Base your report strictly on empirical data from structurally similar compounds found in these databases. Cite the sources in the report.` : ''}
   

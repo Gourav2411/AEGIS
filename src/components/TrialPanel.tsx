@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter, Globe, FileText, Download, X, Database, Search } from 'lucide-react';
+import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter, Globe, FileText, Download, X, Database, Search, DollarSign, Clock, Target } from 'lucide-react';
 import { TrialResult, FormulationResult, generateClinicalTrialReport, TrialParams } from '../services/geminiService';
 import Markdown from 'react-markdown';
 // @ts-ignore
@@ -55,7 +55,7 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
     
     const opt = {
       margin:       10,
-      filename:     `CSR_${formulation?.name || 'Drug'}.pdf`,
+      filename:     `Hypothesis_${formulation?.name || 'Drug'}.pdf`,
       image:        { type: 'jpeg' as const, quality: 0.98 },
       html2canvas:  { scale: 2, backgroundColor: '#ffffff' },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
@@ -92,7 +92,7 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
             className="mt-2 px-3 py-1.5 bg-cyan-950/50 border border-cyan-500/50 text-cyan-400 text-xs uppercase tracking-widest hover:bg-cyan-900/50 hover:text-cyan-200 transition-colors flex items-center gap-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {reportLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-            {reportLoading ? 'Generating...' : 'Generate CSR Report'}
+            {reportLoading ? 'Generating...' : 'Generate Hypothesis Report'}
           </button>
         </div>
       </div>
@@ -113,6 +113,14 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
               This eliminated the need to recruit <span className="text-neon-green font-bold">{Number(trialParams.cohortSize) / 2}</span> control patients, 
               accelerating the trial timeline by an estimated <span className="text-neon-green font-bold">14 months</span> and reducing costs significantly.
             </p>
+            {trialParams.liveEHRRecords && (
+              <div className="mt-3 pt-3 border-t border-neon-cyan/20 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-neon-green" />
+                <span className="text-xs text-neon-green uppercase tracking-widest">
+                  Live Network Connected: Pulled {trialParams.liveEHRRecords.toLocaleString()} real-world patient records for statistical validation.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -150,6 +158,31 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
             </ul>
           </div>
         )}
+
+        {/* Confidence & Savings */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 flex flex-col justify-center items-center text-center">
+            <Target className="w-6 h-6 text-neon-cyan mb-2" />
+            <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest mb-1">Statistical Confidence</div>
+            <div className={`text-xl font-bold ${getScoreColor(result.statisticalConfidence || 85)}`}>
+              {result.statisticalConfidence || 85}%
+            </div>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 flex flex-col justify-center items-center text-center">
+            <DollarSign className="w-6 h-6 text-neon-green mb-2" />
+            <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest mb-1">Est. Cost Savings</div>
+            <div className="text-xl font-bold text-neon-green">
+              {result.costSavingsEstimate || '>$10M'}
+            </div>
+          </div>
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4 flex flex-col justify-center items-center text-center">
+            <Clock className="w-6 h-6 text-purple-400 mb-2" />
+            <div className="text-[10px] text-cyan-500/70 uppercase tracking-widest mb-1">Est. Time Saved</div>
+            <div className="text-xl font-bold text-purple-400">
+              {result.timeSavedEstimate || '>12 Months'}
+            </div>
+          </div>
+        </div>
 
         {/* Success Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -256,6 +289,33 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
                     <Line type="monotone" dataKey="placeboEfficacy" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4, fill: '#083344', stroke: '#94a3b8', strokeWidth: 2 }} name="Synthetic Control Arm" />
                   )}
                 </RechartsLineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Subgroup Analysis */}
+        {result.subgroupAnalysis && result.subgroupAnalysis.length > 0 && (
+          <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+            <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4" /> Subgroup Efficacy Analysis
+            </h3>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={result.subgroupAnalysis} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#164e63" vertical={false} />
+                  <XAxis dataKey="group" stroke="#06b6d4" fontSize={10} />
+                  <YAxis stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#083344', borderColor: '#164e63', color: '#cffafe', fontSize: '12px' }}
+                    formatter={(value: number, name: string) => [name === 'efficacy' ? `${value}%` : value, name === 'efficacy' ? 'Efficacy' : 'Sample Size']}
+                  />
+                  <Bar dataKey="efficacy" fill="#22d3ee" radius={[4, 4, 0, 0]}>
+                    {result.subgroupAnalysis.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.efficacy >= 80 ? '#22c55e' : entry.efficacy >= 50 ? '#f59e0b' : '#ef4444'} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -398,7 +458,7 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
               <div className="flex justify-between items-center p-4 border-b border-cyan-900/50 bg-cyan-950/20">
                 <h3 className="text-lg text-neon-cyan uppercase tracking-widest flex items-center gap-2">
                   <FileText className="w-5 h-5" />
-                  Clinical Study Report (CSR)
+                  Computational Hypothesis Report
                 </h3>
                 <div className="flex items-center gap-2">
                   <button

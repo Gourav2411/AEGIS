@@ -22,6 +22,7 @@ export interface FormData {
   cureRequired: string;
   category: string;
   receptors: string;
+  agenticMode?: boolean;
 }
 
 enum OperationType {
@@ -75,11 +76,18 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [asyncError, setAsyncError] = useState<Error | null>(null);
 
   const [step, setStep] = useState<Step>('input');
+  const handleSetStep = async (newStep: Step) => {
+    setStep(newStep);
+    await saveStateToFirestore({ step: newStep });
+  };
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   
@@ -95,6 +103,10 @@ export default function App() {
   const [trialParams, setTrialParams] = useState<TrialParams | null>(null);
   const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(null);
   const [csvData, setCsvData] = useState<string | null>(null);
+
+  if (asyncError) {
+    throw asyncError;
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -118,7 +130,11 @@ export default function App() {
           if (data.packagingResult) setPackagingResult(JSON.parse(data.packagingResult));
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, `projects/${user.uid}`);
+        try {
+          handleFirestoreError(error, OperationType.GET, `projects/${user.uid}`);
+        } catch (e: any) {
+          setAsyncError(e);
+        }
       });
       return () => unsubscribe();
     }
@@ -139,13 +155,16 @@ export default function App() {
         });
       } else {
         await setDoc(docRef, {
-          ...docSnap.data(),
           updatedAt: now,
           ...updates
         }, { merge: true });
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `projects/${user?.uid}`);
+      try {
+        handleFirestoreError(error, OperationType.WRITE, `projects/${user?.uid}`);
+      } catch (e: any) {
+        setAsyncError(e);
+      }
     }
   };
 
@@ -161,9 +180,34 @@ export default function App() {
   const handleGenerateFormulation = async (data: FormData) => {
     setFormData(data);
     setLoading(true);
-    setLoadingText('Synthesizing novel molecular structures...');
+    
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (data.agenticMode) {
+      const messages = [
+        'Initializing Agentic Loop Optimization...',
+        'Generating 10,000 initial molecular candidates...',
+        'Running high-throughput in-silico screening...',
+        'Selecting top 1% (100 candidates) for mutation...',
+        'Applying quantum-mechanical toxicity reduction...',
+        'Re-simulating binding affinities...',
+        'Finalizing mathematically perfect molecule...'
+      ];
+      let i = 0;
+      setLoadingText(messages[0]);
+      interval = setInterval(() => {
+        i++;
+        if (i < messages.length) {
+          setLoadingText(messages[i]);
+        }
+      }, 1500);
+    } else {
+      setLoadingText('Synthesizing novel molecular structures...');
+    }
+
     try {
-      const result = await generateFormulation(data.disease, data.cureRequired, data.category, data.receptors);
+      const result = await generateFormulation(data.disease, data.cureRequired, data.category, data.receptors, data.agenticMode);
+      if (interval) clearInterval(interval);
       setFormulationResult(result);
       setStep('formulation');
       await saveStateToFirestore({
@@ -172,6 +216,7 @@ export default function App() {
         step: 'formulation'
       });
     } catch (error: any) {
+      if (interval) clearInterval(interval);
       console.error("Formulation error:", error);
       alert(error.message || "An error occurred during formulation generation.");
     } finally {
@@ -340,7 +385,7 @@ export default function App() {
           {step === 'formulation' && formulationResult && (
             <FormulationPanel 
               result={formulationResult} 
-              onNext={() => setStep('physics')} 
+              onNext={() => handleSetStep('physics')} 
               onReset={resetSystem}
               loading={loading} 
             />
@@ -349,9 +394,15 @@ export default function App() {
           {step === 'physics' && formulationResult && (
             <PhysicsSimulationPanel
               formulation={formulationResult}
-              receptor={formData.receptors}
-              onNext={() => setStep('trial-input')}
+              receptor={formData?.receptors || ''}
+              onNext={() => handleSetStep('trial-input')}
               onReset={resetSystem}
+              onOptimize={() => {
+                if (formData) {
+                  handleGenerateFormulation({ ...formData, agenticMode: true });
+                }
+              }}
+              loading={loading}
             />
           )}
 
@@ -382,6 +433,10 @@ export default function App() {
           {step === 'packaging' && packagingResult && (
             <PackagingPanel 
               result={packagingResult} 
+              formulation={formulationResult}
+              trialParams={trialParams}
+              trialResult={trialResult}
+              formData={formData}
               onReset={resetSystem} 
             />
           )}
@@ -389,7 +444,15 @@ export default function App() {
       </main>
 
       {/* Jarvis Assistant Overlay */}
-      <JarvisAssistant />
+      <JarvisAssistant 
+        appState={{ step, formData, formulationResult, trialParams, trialResult, packagingResult }}
+        onUpdateFormData={setFormData}
+        onGenerateFormulation={handleGenerateFormulation}
+        onSimulateTrial={handleSimulateTrial}
+        onGeneratePackaging={handleGeneratePackaging}
+        onReset={resetSystem}
+        onSetStep={handleSetStep}
+      />
     </div>
   );
 }

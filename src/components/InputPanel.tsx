@@ -708,7 +708,8 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
     disease: '',
     cureRequired: '',
     category: '',
-    receptors: ''
+    receptors: '',
+    agenticMode: false
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -1037,6 +1038,30 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500/70 pointer-events-none" />
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-cyan-950/30 border border-cyan-900/50 rounded-lg p-4 mt-4">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center justify-center mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      className="peer sr-only"
+                      checked={formData.agenticMode || false}
+                      onChange={(e) => setFormData({ ...formData, agenticMode: e.target.checked })}
+                      disabled={loading}
+                    />
+                    <div className="w-5 h-5 border-2 border-cyan-900/50 rounded bg-jarvis-bg peer-checked:bg-neon-cyan peer-checked:border-neon-cyan transition-colors"></div>
+                    <CheckCircle2 className="absolute w-3 h-3 text-jarvis-bg opacity-0 peer-checked:opacity-100 transition-opacity" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-neon-cyan font-bold uppercase tracking-widest flex items-center gap-2">
+                      <Activity className="w-4 h-4" /> Agentic Loop Optimization (2035 Mode)
+                    </div>
+                    <p className="text-xs text-cyan-500/70 mt-1 leading-relaxed">
+                      Enable autonomous AI iteration. Aegis will generate multiple molecular variants, evaluate their binding affinity and toxicity, mutate the SMILES strings, and return the mathematically optimal compound.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               <div className="mt-auto pt-6 border-t border-cyan-900/50 flex justify-end">

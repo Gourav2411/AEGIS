@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle, Lightbulb, Globe } from 'lucide-react';
+import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle, Lightbulb, Globe, Link, Zap } from 'lucide-react';
 import { FormulationResult } from '../services/geminiService';
 import MolecularViewer from './MolecularViewer';
 import InteractionSimulator from './InteractionSimulator';
@@ -27,7 +27,9 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
           </h2>
           <div className="flex items-center gap-2 mt-2">
             <Globe className="w-3 h-3 text-neon-green animate-pulse" />
-            <p className="text-xs text-neon-green/80 uppercase tracking-widest">Grounded in real-time clinical data</p>
+            <p className="text-xs text-neon-green/80 uppercase tracking-widest">
+              {result.optimizationLog ? 'Novel derivative optimized via Agentic Loop' : result.cid ? 'Grounded in real PubChem empirical data' : 'Grounded in real-time clinical data'}
+            </p>
           </div>
         </div>
         <div className="text-right">
@@ -39,15 +41,59 @@ export default function FormulationPanel({ result, onNext, onReset, loading }: F
       <div className="flex-1 overflow-y-auto pr-2 space-y-6">
         
         {/* Formulation Name */}
-        <div className="bg-neon-cyan/10 border border-neon-cyan/50 rounded-lg p-4 flex items-center justify-between">
-          <div>
+        <div className="bg-neon-cyan/10 border border-neon-cyan/50 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex-1">
             <h3 className="text-xs text-neon-cyan uppercase tracking-widest mb-1">Generated Formulation Name</h3>
             <p className="text-2xl text-white font-bold tracking-wider">{result.name}</p>
+            {result.iupacName && (
+              <p className="text-xs text-cyan-500/70 mt-2 break-words">IUPAC: {result.iupacName}</p>
+            )}
+            {result.cid && (
+              <a 
+                href={`https://pubchem.ncbi.nlm.nih.gov/compound/${result.cid}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-neon-cyan hover:text-white mt-2 transition-colors"
+              >
+                <Link className="w-3 h-3" /> View on PubChem (CID: {result.cid})
+              </a>
+            )}
           </div>
-          <div className="hidden md:block text-neon-cyan/30">
-            <Beaker className="w-12 h-12" />
-          </div>
+          {result.cid ? (
+            <div className="bg-white/5 p-2 rounded border border-cyan-900/50 shrink-0">
+              <img 
+                src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${result.cid}/PNG`} 
+                alt="Molecular Structure" 
+                className="w-32 h-32 object-contain bg-white rounded"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <div className="hidden md:block text-neon-cyan/30 shrink-0">
+              <Beaker className="w-12 h-12" />
+            </div>
+          )}
         </div>
+
+        {/* Agentic Optimization Log */}
+        {result.optimizationLog && result.optimizationLog.length > 0 && (
+          <div className="bg-cyan-950/30 border border-neon-cyan/50 rounded-lg p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-neon-cyan/20 rounded-lg">
+                <Zap className="w-5 h-5 text-neon-cyan" />
+              </div>
+              <h3 className="text-lg font-bold text-cyan-100 uppercase tracking-widest">Agentic Optimization Loop</h3>
+            </div>
+            <div className="space-y-4">
+              {result.optimizationLog.map((log, index) => (
+                <div key={index} className="flex items-start gap-3 text-sm text-cyan-100/90">
+                  <span className="text-neon-cyan font-mono font-bold mt-0.5">[{index + 1}]</span>
+                  <p className="leading-relaxed">{log}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Chemical Properties */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

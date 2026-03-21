@@ -9,17 +9,20 @@ interface PhysicsSimulationPanelProps {
   receptor: string;
   onNext: () => void;
   onReset: () => void;
+  onOptimize: () => void;
+  loading: boolean;
 }
 
-export default function PhysicsSimulationPanel({ formulation, receptor, onNext, onReset }: PhysicsSimulationPanelProps) {
+export default function PhysicsSimulationPanel({ formulation, receptor, onNext, onReset, onOptimize, loading }: PhysicsSimulationPanelProps) {
   const [qsarData, setQsarData] = useState<any>(null);
   const [comparisonData, setComparisonData] = useState<any>(null);
   const [dockingData, setDockingData] = useState<any>(null);
+  const [comparisonDockingData, setComparisonDockingData] = useState<any>(null);
   const [loadingQsar, setLoadingQsar] = useState(true);
   const [loadingDocking, setLoadingDocking] = useState(true);
   const [dockingError, setDockingError] = useState<string | null>(null);
 
-  const smiles = formulation.smilesString || 'CC(=O)OC1=CC=CC=C1C(=O)O'; // Fallback to Aspirin if missing
+  const smiles = formulation.smilesString || formulation.molecularStructure || 'CC(=O)OC1=CC=CC=C1C(=O)O'; // Fallback to Aspirin if missing
 
   useEffect(() => {
     // Call QSAR Backend
@@ -103,6 +106,7 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
                   const compSmiles = e.target.value;
                   if (!compSmiles) {
                     setComparisonData(null);
+                    setComparisonDockingData(null);
                     return;
                   }
                   fetch('/api/qsar', {
@@ -113,9 +117,21 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
                     .then(res => res.json())
                     .then(data => setComparisonData(data))
                     .catch(err => console.error(err));
+
+                  fetch('/api/docking', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ smiles: compSmiles, receptor })
+                  })
+                    .then(res => res.json())
+                    .then(data => setComparisonDockingData(data))
+                    .catch(err => console.error(err));
                 }}
               >
                 <option value="">Compare with...</option>
+                {formulation.baseSmiles && (
+                  <option value={formulation.baseSmiles}>Base Compound (Pre-Mutation)</option>
+                )}
                 <option value="CC(=O)OC1=CC=CC=C1C(=O)O">Aspirin</option>
                 <option value="CC(C)CC1=CC=C(C=C1)C(C)C(=O)O">Ibuprofen</option>
                 <option value="CN1C=NC2=C1C(=O)N(C(=O)N2C)C">Caffeine</option>
@@ -191,11 +207,21 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="bg-cyan-900/20 border border-cyan-900/50 rounded p-3 text-center">
                     <div className="text-xs text-cyan-500/70 uppercase mb-1">Binding Free Energy (ΔG)</div>
-                    <div className="text-xl text-neon-green font-bold">{dockingData.bindingEnergy} <span className="text-xs font-normal text-cyan-500">kcal/mol</span></div>
+                    <div className="text-xl text-neon-green font-bold">
+                      {dockingData.bindingEnergy} <span className="text-xs font-normal text-cyan-500">kcal/mol</span>
+                    </div>
+                    {comparisonDockingData && (
+                      <div className="text-xs text-cyan-500/50 mt-1">vs {comparisonDockingData.bindingEnergy}</div>
+                    )}
                   </div>
                   <div className="bg-cyan-900/20 border border-cyan-900/50 rounded p-3 text-center">
                     <div className="text-xs text-cyan-500/70 uppercase mb-1">Spatial Fit Score</div>
-                    <div className="text-xl text-cyan-100 font-bold">{dockingData.spatialFit}<span className="text-xs font-normal text-cyan-500">%</span></div>
+                    <div className="text-xl text-cyan-100 font-bold">
+                      {dockingData.spatialFit}<span className="text-xs font-normal text-cyan-500">%</span>
+                    </div>
+                    {comparisonDockingData && (
+                      <div className="text-xs text-cyan-500/50 mt-1">vs {comparisonDockingData.spatialFit}%</div>
+                    )}
                   </div>
                 </div>
                 <div className="border-t border-cyan-900/30 pt-4 pb-2">
@@ -220,22 +246,39 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
       <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">
         <button 
           onClick={onReset}
-          className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
+          disabled={loading}
+          className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors disabled:opacity-50"
         >
           <RefreshCw className="w-3 h-3" /> Abort & Restart
         </button>
         
-        <button 
-          onClick={onNext}
-          disabled={loadingQsar || loadingDocking}
-          className="group relative px-6 py-3 bg-cyan-950/50 border border-neon-cyan text-neon-cyan text-sm uppercase tracking-widest hover:bg-neon-cyan hover:text-jarvis-bg transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-neon-cyan/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
-          <span className="relative flex items-center gap-2">
-            Proceed to Trial Simulation
-            <ChevronRight className="w-4 h-4" />
-          </span>
-        </button>
+        <div className="flex gap-4">
+          {!formulation.optimizationLog && (
+            <button 
+              onClick={onOptimize}
+              disabled={loading || loadingQsar || loadingDocking}
+              className="group relative px-6 py-3 bg-neon-cyan/10 border border-neon-cyan text-neon-cyan text-sm uppercase tracking-widest hover:bg-neon-cyan hover:text-jarvis-bg transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-neon-cyan/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
+              <span className="relative flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Run Agentic Optimization
+              </span>
+            </button>
+          )}
+          
+          <button 
+            onClick={onNext}
+            disabled={loading || loadingQsar || loadingDocking}
+            className="group relative px-6 py-3 bg-cyan-950/50 border border-neon-cyan text-neon-cyan text-sm uppercase tracking-widest hover:bg-neon-cyan hover:text-jarvis-bg transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-neon-cyan/20 translate-x-full group-hover:translate-x-0 transition-transform"></div>
+            <span className="relative flex items-center gap-2">
+              Proceed to Trial Simulation
+              <ChevronRight className="w-4 h-4" />
+            </span>
+          </button>
+        </div>
       </div>
     </motion.div>
   );

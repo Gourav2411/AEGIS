@@ -11,10 +11,28 @@ interface Message {
   isThinking?: boolean;
 }
 
-export default function JarvisAssistant() {
+interface JarvisAssistantProps {
+  appState?: any;
+  onUpdateFormData?: (data: any) => void;
+  onGenerateFormulation?: (data: any) => void;
+  onSimulateTrial?: (params: any) => void;
+  onGeneratePackaging?: () => void;
+  onReset?: () => void;
+  onSetStep?: (step: string) => void;
+}
+
+export default function JarvisAssistant({ 
+  appState, 
+  onUpdateFormData, 
+  onGenerateFormulation, 
+  onSimulateTrial, 
+  onGeneratePackaging, 
+  onReset,
+  onSetStep
+}: JarvisAssistantProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'model', text: 'Aegis Assistant online. How can I assist with your drug discovery process today?' }
+    { id: '1', role: 'model', text: 'Aegis Core Intelligence online. I am your AI drug discovery assistant. How can I help you today?' }
   ]);
   const [input, setInput] = useState('');
   const [useDeepThink, setUseDeepThink] = useState(false);
@@ -38,12 +56,19 @@ export default function JarvisAssistant() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading || isLiveMode) return;
+  const quickTemplates = [
+    { label: "Alzheimer's", prompt: "I want to design a drug for Alzheimer's Disease. The category is Neurodegenerative, the target receptor is Amyloid beta, and I'm looking for Disease Modification. Please fill out the form and generate the formulation." },
+    { label: "Type 2 Diabetes", prompt: "I want to design a drug for Type 2 Diabetes. The category is Metabolic, the target receptor is GLP-1, and I'm looking for Symptom Management. Please fill out the form and generate the formulation." },
+    { label: "Rheumatoid Arthritis", prompt: "I want to design a drug for Rheumatoid Arthritis. The category is Autoimmune, the target receptor is TNF-alpha, and I'm looking for Disease Modification. Please fill out the form and generate the formulation." }
+  ];
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: input };
+  const handleSend = async (textToSend?: string | React.MouseEvent) => {
+    const text = typeof textToSend === 'string' ? textToSend : input;
+    if (!text.trim() || isLoading || isLiveMode) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: text };
     setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    if (typeof textToSend !== 'string') setInput('');
     setIsLoading(true);
 
     const history = messages.map(m => ({
@@ -51,8 +76,104 @@ export default function JarvisAssistant() {
       parts: [{ text: m.text }]
     }));
 
+    const systemContext = `
+You are Aegis, the central AI agent driving this drug discovery platform. The user interacts primarily with you. Guide them step-by-step through the process.
+Instead of the user manually filling out forms, you will ask them questions to gather the necessary information, and then use the available actions to update the UI and proceed.
+
+Current App State:
+- Step: ${appState?.step || 'input'}
+- FormData: ${JSON.stringify(appState?.formData || {})}
+- Formulation: ${appState?.formulationResult ? appState.formulationResult.name : 'None'}
+- TrialParams: ${JSON.stringify(appState?.trialParams || {})}
+
+If you need to execute an action on behalf of the user, output a JSON block exactly like this at the very end of your response:
+\`\`\`action
+{
+  "type": "ACTION_NAME",
+  "payload": { ... }
+}
+\`\`\`
+
+Available actions:
+1. UPDATE_FORM_DATA (payload: { disease, cureRequired, category, receptors, agenticMode })
+2. GENERATE_FORMULATION (payload: { disease, cureRequired, category, receptors, agenticMode })
+3. SIMULATE_TRIAL (payload: { cohortSize, duration, inclusionCriteria, exclusionCriteria, dosageAdjustments, useSCA, useAdaptiveDesign, useRAG })
+4. GENERATE_PACKAGING (payload: {})
+5. RESET_SYSTEM (payload: {})
+6. SET_STEP (payload: { step: "input" | "formulation" | "physics" | "trial-input" | "trial" | "packaging" })
+
+Guidelines:
+- You are Aegis, an advanced AI drug discovery assistant.
+- You can help the user fill out forms and navigate the application if they ask.
+- If the user is on the 'input' step, ask them what disease they want to target, what kind of cure they are looking for, and if they know the target receptor. Once you have enough info, use UPDATE_FORM_DATA to fill the form, and ask if they are ready to generate the formulation. If they say yes, use GENERATE_FORMULATION.
+- If the user is on the 'formulation' step and wants to see the 3D structure, use SET_STEP with payload {"step": "physics"}.
+- If the user is on the 'physics' step and wants to proceed to trial setup, use SET_STEP with payload {"step": "trial-input"}.
+- On the 'trial-input' step, ask for trial parameters (cohort size, duration, inclusion/exclusion criteria, dosage adjustments, useSCA, useAdaptiveDesign, useRAG). Use SIMULATE_TRIAL when ready.
+- On the 'trial' step, if they want to generate packaging, use GENERATE_PACKAGING.
+- Explain what you are doing before outputting the action block.
+- Keep your conversational responses concise and professional.
+- Do not output the action block unless you are actually executing an action.
+`;
+
     try {
-      const responseText = await chatWithJarvis(userMsg.text, useDeepThink, useDeepSearch, history);
+      let responseText = await chatWithJarvis(userMsg.text, useDeepThink, useDeepSearch, history, systemContext);
+      
+      // Parse for action block
+      const actionMatch = responseText.match(/```(?:action|json)\n([\s\S]*?)\n```/) || responseText.match(/```\n({\s*"type"[\s\S]*?})\n```/);
+      
+      let actionJson = null;
+      if (actionMatch) {
+        actionJson = actionMatch[1];
+        responseText = responseText.replace(/```(?:action|json)?\n[\s\S]*?\n```/, '').trim();
+      } else {
+        // Fallback: look for raw JSON object at the end if it forgot markdown formatting
+        const rawJsonMatch = responseText.match(/({[\s\n]*"type"[\s\S]*"payload"[\s\S]*})/);
+        if (rawJsonMatch) {
+          actionJson = rawJsonMatch[1];
+          responseText = responseText.replace(rawJsonMatch[1], '').trim();
+        }
+      }
+
+      if (actionJson) {
+        try {
+          const action = JSON.parse(actionJson);
+          
+          // Execute action
+          if (action.type === 'UPDATE_FORM_DATA' && onUpdateFormData) {
+            onUpdateFormData({ ...appState?.formData, ...action.payload });
+          } else if (action.type === 'GENERATE_FORMULATION' && onGenerateFormulation) {
+            onGenerateFormulation({ ...appState?.formData, ...action.payload });
+          } else if (action.type === 'SIMULATE_TRIAL' && onSimulateTrial) {
+            const defaultParams = {
+              phase: 'Phase 2',
+              cohortSize: '500',
+              ageGroup: 'Adults (18-65)',
+              dosage: '50',
+              dosageUnit: 'mg',
+              duration: '6 Months',
+              geneticMarkers: 'None specific',
+              diseaseSeverity: '',
+              previousTreatments: '',
+              inclusionCriteria: '',
+              exclusionCriteria: '',
+              dosageAdjustments: '',
+              useSCA: false,
+              useAdaptiveDesign: false,
+              useRAG: false
+            };
+            onSimulateTrial({ ...defaultParams, ...appState?.trialParams, ...action.payload });
+          } else if (action.type === 'GENERATE_PACKAGING' && onGeneratePackaging) {
+            onGeneratePackaging();
+          } else if (action.type === 'RESET_SYSTEM' && onReset) {
+            onReset();
+          } else if (action.type === 'SET_STEP' && onSetStep) {
+            onSetStep(action.payload.step);
+          }
+        } catch (e) {
+          console.error("Failed to parse action block:", e);
+        }
+      }
+
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: responseText }]);
     } catch (error) {
       console.error("Chat error:", error);
@@ -214,31 +335,39 @@ export default function JarvisAssistant() {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Toggle Button */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 p-4 rounded-full bg-cyan-950 border border-neon-cyan text-neon-cyan shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:bg-neon-cyan hover:text-jarvis-bg transition-all z-50 ${isOpen ? 'hidden' : 'flex'}`}
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed bottom-6 right-6 p-4 rounded-full shadow-lg shadow-neon-cyan/20 z-50 transition-all duration-300 ${
+          isOpen 
+            ? 'bg-cyan-900 text-cyan-500 hover:bg-cyan-800' 
+            : 'bg-jarvis-bg border border-neon-cyan text-neon-cyan hover:shadow-neon-cyan/40 hover:scale-105'
+        }`}
       >
-        <MessageSquare className="w-6 h-6" />
+        {isOpen ? <X className="w-6 h-6" /> : <BrainCircuit className="w-6 h-6" />}
       </button>
 
-      {/* Chat Panel */}
+      {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-6 right-6 w-96 h-[600px] max-h-[80vh] glass-panel border border-neon-cyan/50 rounded-xl flex flex-col z-50 overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.15)]"
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-24 right-6 w-96 h-[600px] max-h-[80vh] glass-panel border border-neon-cyan/50 rounded-xl flex flex-col overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.1)] z-50"
           >
             {/* Header */}
             <div className="p-4 border-b border-cyan-900/50 flex justify-between items-center bg-cyan-950/50">
               <div className="flex items-center gap-2">
                 <BrainCircuit className="w-5 h-5 text-neon-cyan" />
-                <span className="font-mono text-neon-cyan font-bold tracking-widest uppercase text-sm">Aegis Assistant</span>
+                <span className="font-mono text-neon-cyan font-bold tracking-widest uppercase text-sm">Aegis Core Intelligence</span>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-cyan-500 hover:text-neon-cyan transition-colors">
-                <X className="w-5 h-5" />
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-cyan-500 hover:text-neon-cyan transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -269,6 +398,25 @@ export default function JarvisAssistant() {
                   </div>
                 </div>
               ))}
+
+              {/* Quick Templates */}
+              {messages.length === 1 && appState?.step === 'input' && (
+                <div className="flex flex-col gap-2 mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <p className="text-cyan-500/70 text-xs uppercase tracking-wider mb-1">Quick Start Templates</p>
+                  <div className="flex flex-wrap gap-2">
+                    {quickTemplates.map(t => (
+                      <button
+                        key={t.label}
+                        onClick={() => handleSend(t.prompt)}
+                        className="px-3 py-2 rounded-lg border border-cyan-800 bg-cyan-950/30 text-cyan-300 hover:bg-neon-cyan/20 hover:border-neon-cyan hover:text-neon-cyan transition-colors text-xs text-left"
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="bg-cyan-950/50 border border-cyan-900/50 rounded-lg p-3 text-cyan-500 flex items-center gap-2">
