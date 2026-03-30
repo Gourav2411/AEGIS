@@ -56,8 +56,13 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
           body: JSON.stringify({ smiles: smilesToUse })
         });
         if (res.ok) {
-          const data = await res.json();
-          setQsarData(data);
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await res.json();
+            setQsarData(data);
+          } else {
+            console.error("QSAR response was not JSON");
+          }
         }
       } catch (err) {
         console.error("Failed to fetch QSAR data", err);
@@ -521,19 +526,19 @@ export default function TrialInputPanel({ formulation, disease, onSimulate, onRe
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <div className="text-xs text-cyan-500/70 uppercase">Predicted Toxicity (LD50)</div>
-                        <div className="text-sm text-cyan-100">{qsarData.toxicityLD50.toFixed(0)} mg/kg</div>
+                        <div className="text-sm text-cyan-100">{Number(qsarData.toxicityLD50).toFixed(0)} mg/kg</div>
                       </div>
                       <div>
                         <div className="text-xs text-cyan-500/70 uppercase">Predicted Solubility</div>
-                        <div className="text-sm text-cyan-100">{qsarData.solubility.toFixed(2)} mg/mL</div>
+                        <div className="text-sm text-cyan-100">{Number(qsarData.solubility).toFixed(2)} mg/mL</div>
                       </div>
                       <div>
                         <div className="text-xs text-cyan-500/70 uppercase">Predicted Clearance Rates</div>
-                        <div className="text-sm text-cyan-100">{qsarData.clearanceRate.toFixed(2)} mL/min/kg</div>
+                        <div className="text-sm text-cyan-100">{Number(qsarData.clearanceRate).toFixed(2)} mL/min/kg</div>
                       </div>
                       <div>
                         <div className="text-xs text-cyan-500/70 uppercase">LogP</div>
-                        <div className="text-sm text-cyan-100">{qsarData.logP.toFixed(2)}</div>
+                        <div className="text-sm text-cyan-100">{Number(qsarData.logP).toFixed(2)}</div>
                       </div>
                     </div>
                   ) : (

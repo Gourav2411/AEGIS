@@ -134,7 +134,7 @@
         },
         "role": {
           "type": "string",
-          "enum": ["user", "admin"],
+          "enum": ["user", "scientist", "admin"],
           "description": "The user's role in the system."
         },
         "createdAt": {
@@ -186,9 +186,75 @@
         }
       },
       "required": ["userId", "modelName", "status", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit log for FDA 21 CFR Part 11 compliance.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who performed the action."
+        },
+        "action": {
+          "type": "string",
+          "description": "The action performed (e.g., 'QSAR_PREDICTION', 'DOCKING_SIMULATION', 'DRUG_DISCOVERY')."
+        },
+        "details": {
+          "type": "string",
+          "description": "JSON stringified details of the action, including inputs and model versions."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the action occurred."
+        },
+        "ipAddress": {
+          "type": "string",
+          "description": "The IP address of the user (if available)."
+        }
+      },
+      "required": ["userId", "action", "details", "timestamp"]
+    },
+    "SavedFormulation": {
+      "title": "SavedFormulation",
+      "description": "A saved formulation result.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who saved this formulation."
+        },
+        "name": {
+          "type": "string"
+        },
+        "smilesString": {
+          "type": "string"
+        },
+        "mechanismOfAction": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "name", "smilesString", "mechanismOfAction", "createdAt"]
     }
   },
   "firestore": {
+    "/saved_formulations/{formulationId}": {
+      "schema": {
+        "$ref": "#/entities/SavedFormulation"
+      },
+      "description": "Stores saved formulations for users."
+    },
+    "/audit_logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/AuditLog"
+      },
+      "description": "Stores immutable audit logs for compliance."
+    },
     "/users/{userId}": {
       "schema": {
         "$ref": "#/entities/UserProfile"

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter, Globe, FileText, Download, X, Database, Search, DollarSign, Clock, Target } from 'lucide-react';
+import { Activity, ShieldAlert, HeartPulse, BrainCircuit, RefreshCw, ChevronRight, CheckCircle2, AlertTriangle, Beaker, LineChart, Users, TrendingUp, Dna, Filter, Globe, FileText, Download, X, Database, Search, DollarSign, Clock, Target, Zap } from 'lucide-react';
 import { TrialResult, FormulationResult, generateClinicalTrialReport, TrialParams } from '../services/geminiService';
 import Markdown from 'react-markdown';
 // @ts-ignore
@@ -13,12 +13,15 @@ interface TrialPanelProps {
   formulation: FormulationResult | null;
   formData: any;
   trialParams?: TrialParams | null;
+  qsarData?: any;
+  dockingData?: any;
   onNext: () => void;
   onReset: () => void;
   loading: boolean;
+  useSlm?: boolean;
 }
 
-export default function TrialPanel({ result, formulation, formData, trialParams, onNext, onReset, loading }: TrialPanelProps) {
+export default function TrialPanel({ result, formulation, formData, trialParams, qsarData, dockingData, onNext, onReset, loading, useSlm }: TrialPanelProps) {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportContent, setReportContent] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -40,7 +43,7 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
     if (!formulation) return;
     setReportLoading(true);
     try {
-      const report = await generateClinicalTrialReport(formulation, result, formData, trialParams);
+      const report = await generateClinicalTrialReport(formulation, result, formData, trialParams, qsarData, dockingData);
       setReportContent(report);
       setShowModal(true);
     } catch (error) {
@@ -76,6 +79,11 @@ export default function TrialPanel({ result, formulation, formData, trialParams,
           <h2 className="text-xl text-neon-cyan uppercase tracking-widest flex items-center gap-2">
             <Activity className="w-5 h-5" />
             Virtual Trial Simulation
+            {useSlm && (
+              <span className="px-2 py-0.5 bg-purple-900/40 border border-purple-500/50 rounded text-[10px] text-purple-400 font-bold tracking-widest ml-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> AEGIS-SLM-V1
+              </span>
+            )}
           </h2>
           <div className="flex items-center gap-2 mt-2">
             <Globe className="w-3 h-3 text-neon-green animate-pulse" />

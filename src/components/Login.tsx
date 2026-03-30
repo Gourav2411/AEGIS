@@ -17,7 +17,11 @@ export default function Login({ onLogin }: LoginProps) {
       await loginWithGoogle();
       onLogin();
     } catch (err: any) {
-      setError(err.message || "Failed to login with Google");
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+        setError("Sign-in was cancelled. Please try again.");
+      } else {
+        setError(err?.message || "Failed to login with Google");
+      }
       setLoading(false);
     }
   };

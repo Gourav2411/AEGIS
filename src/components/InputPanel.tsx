@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Target, Activity, Beaker, ShieldAlert, ChevronDown, Save, Download, RotateCcw, CheckCircle2, Circle, Dna, FlaskConical, Search, Info, Upload } from 'lucide-react';
+import { Target, Activity, Beaker, ShieldAlert, ChevronDown, Save, Download, RotateCcw, CheckCircle2, Circle, Dna, FlaskConical, Search, Info, Upload, Database } from 'lucide-react';
 import { FormData } from '../App';
 import LiveOptimization from './LiveOptimization';
 
@@ -620,6 +620,10 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                           setError("Please upload a valid .pdb file.");
                           return;
                         }
+                        if (file.size > 5 * 1024 * 1024) {
+                          setError("File size exceeds 5MB limit.");
+                          return;
+                        }
                         setError(null);
                         setFormData({ ...formData, pdbFile: file });
                       }
@@ -641,6 +645,31 @@ export default function InputPanel({ onSubmit, loading }: InputPanelProps) {
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-cyan-950/30 border border-cyan-900/50 rounded-lg p-4 mt-4">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center justify-center mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      className="peer sr-only"
+                      checked={formData.useBioNeMo || false}
+                      onChange={(e) => setFormData({ ...formData, useBioNeMo: e.target.checked })}
+                      disabled={loading}
+                    />
+                    <div className="w-5 h-5 border-2 border-cyan-900/50 rounded bg-jarvis-bg peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-colors"></div>
+                    <CheckCircle2 className="absolute w-3 h-3 text-jarvis-bg opacity-0 peer-checked:opacity-100 transition-opacity" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                      <Database className="w-4 h-4" /> Use NVIDIA BioNeMo
+                      <Tooltip text="When enabled, the AI will use NVIDIA BioNeMo APIs (MegaMolBART, ESMFold) for generative drug discovery instead of the default Gemini model." />
+                    </div>
+                    <p className="text-xs text-cyan-500/70 mt-1 leading-relaxed">
+                      Leverage NVIDIA's enterprise-grade generative AI models for molecular generation and protein structure prediction. Requires NGC API Key configured in the Enterprise Hub.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               <div className="bg-cyan-950/30 border border-cyan-900/50 rounded-lg p-4 mt-4">

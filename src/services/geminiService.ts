@@ -119,25 +119,22 @@ export interface InteractionResult {
 }
 
 export const connectToLiveEHR = async (disease: string, params: TrialParams): Promise<number> => {
-  // Simulate connecting to an EHR network and fetching records based on disease and params
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // Base records
-      let records = Math.floor(Math.random() * 500000) + 100000;
-      
-      // Adjust based on disease rarity (simulated)
-      if (disease.toLowerCase().includes('rare') || disease.toLowerCase().includes('orphan')) {
-        records = Math.floor(records * 0.1);
-      }
-      
-      // Adjust based on age group
-      if (params.ageGroup.includes('Pediatric')) {
-        records = Math.floor(records * 0.2);
-      }
-      
-      resolve(records);
-    }, 3000);
-  });
+  try {
+    const response = await fetch('/api/ehr/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disease, ageGroup: params.ageGroup })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.count;
+    }
+  } catch (e) {
+    console.error("Failed to fetch EHR records from API", e);
+  }
+  
+  // Fallback
+  return Math.floor(Math.random() * 500000) + 100000;
 };
 
 export const generateFormulation = async (
@@ -147,32 +144,210 @@ export const generateFormulation = async (
   receptors: string,
   agenticMode: boolean = false,
   useSlm: boolean = false,
-  pdbFileContent?: string
+  pdbFileContent?: string,
+  useBioNeMo?: boolean,
+  slmContext?: string
 ): Promise<FormulationResult> => {
-  const apiKey = getEffectiveApiKey();
-  const response = await fetch('/api/discover', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey
-    },
-    body: JSON.stringify({
-      disease,
-      cureRequired,
-      category,
-      receptors,
-      agenticMode,
-      useSlm,
-      pdbFileContent
-    }),
-  });
+  let slmInstruction = "";
+  if (useSlm) {
+    slmInstruction = "You are Aegis-SLM-v1, a highly specialized fine-tuned model trained on expert human feedback. Your outputs must be exceptionally precise, scientifically rigorous, and prioritize novel, highly effective mechanisms over standard approaches. ";
+    if (slmContext) {
+      slmInstruction += `\n\nCRITICAL TRAINING CONTEXT TO APPLY:\n${slmContext}\n\n`;
+    }
+  }
+  
+  // Step 1: Identify base compound
+  let compoundName = "Unknown Compound";
+  let bionemoSmiles = null;
+  let realFdaData: any = null;
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to generate formulation: ${response.statusText}`);
+  if (useBioNeMo) {
+    // Call BioNeMo MegaMolBART for generative SMILES
+    try {
+      const apiKey = localStorage.getItem('bionemo_api_key');
+      const response = await fetch('/api/bionemo/megamolbart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_sequence: receptors, api_key: apiKey }) // Simplified for demo
+      });
+      if (response.ok) {
+        const data = await response.json();
+        bionemoSmiles = data.generated_smiles?.[0] || null;
+        compoundName = "BioNeMo Generated Compound";
+      } else {
+        console.warn("BioNeMo API failed, falling back to Gemini.");
+      }
+    } catch (e) {
+      console.warn("BioNeMo API error:", e);
+    }
+  } else if (!agenticMode) {
+    try {
+      const fdaRes = await fetch('/api/fda/drug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disease })
+      });
+      if (fdaRes.ok) {
+        const fdaJson = await fdaRes.json();
+        if (fdaJson.success && fdaJson.drugs && fdaJson.drugs.length > 0) {
+          realFdaData = fdaJson.drugs[0];
+          compoundName = realFdaData.genericName !== "Unknown" ? realFdaData.genericName : realFdaData.brandName;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch FDA data", e);
+    }
   }
 
-  return await response.json();
+  if (!bionemoSmiles && compoundName === "Unknown Compound") {
+    const identificationPrompt = `${slmInstruction}Act as an expert computational chemist and pharmacologist. Based on the following parameters, identify ONE real, existing chemical compound or drug that is used, heavily researched, or highly relevant for this condition.
+Disease: ${disease}
+Cure Required: ${cureRequired}
+Category: ${category}
+Target Receptors: ${receptors}
+
+Return a JSON object with a single field 'compoundName' containing the exact name of the chemical compound (e.g., "Osimertinib", "Imatinib", "Aspirin").`;
+
+    const idSchema = {
+      type: Type.OBJECT,
+      properties: {
+        compoundName: { type: Type.STRING }
+      },
+      required: ["compoundName"]
+    };
+
+    const idResult = await generateStructuredContent(identificationPrompt, idSchema);
+    compoundName = idResult.compoundName || "Unknown Compound";
+  }
+
+  // Step 2: Fetch PubChem Data
+  let pubchemData: any = null;
+  try {
+    const pubchemRes = await fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(compoundName)}/property/MolecularFormula,MolecularWeight,CanonicalSMILES,IUPACName/JSON`);
+    if (pubchemRes.ok) {
+      const data = await pubchemRes.json();
+      if (data.PropertyTable?.Properties?.length > 0) {
+        pubchemData = data.PropertyTable.Properties[0];
+      }
+    }
+  } catch (error) {
+    console.warn("PubChem API fetch failed:", error);
+  }
+
+  // Step 3: Generate Formulation
+  let prompt = `${slmInstruction}Act as an expert computational chemist and pharmacologist. We are analyzing the real compound "${compoundName}" for the following parameters:
+Disease: ${disease}
+Cure Required: ${cureRequired}
+Category: ${category}
+Target Receptors: ${receptors}
+
+${realFdaData ? `
+Use the following REAL empirical data from the official FDA label for this compound:
+- Brand Name: ${realFdaData.brandName}
+- Generic Name: ${realFdaData.genericName}
+- Active Ingredients: ${realFdaData.substanceName.join(', ')}
+- Mechanism of Action: ${realFdaData.mechanismOfAction}
+- Pharmacokinetics: ${realFdaData.pharmacokinetics}
+- Adverse Reactions: ${realFdaData.adverseReactions}
+- Warnings: ${realFdaData.warnings}
+
+CRITICAL: You MUST use this real FDA data to populate the mechanism of action, active ingredients, drug interactions, and clinical profile. Do not hallucinate.
+` : ''}
+
+${bionemoSmiles ? `
+Use the following REAL empirical data generated by NVIDIA BioNeMo MegaMolBART:
+- SMILES: ${bionemoSmiles}
+` : pubchemData ? `
+Use the following REAL empirical data from PubChem for this compound:
+- IUPAC Name: ${pubchemData.IUPACName || 'N/A'}
+- Chemical Formula: ${pubchemData.MolecularFormula || 'N/A'}
+- SMILES: ${pubchemData.CanonicalSMILES || 'N/A'}
+- Molecular Weight: ${pubchemData.MolecularWeight || 'N/A'} g/mol
+` : 'No PubChem data was found. Please provide the most accurate known chemical formula and SMILES string for this compound.'}
+
+Provide a detailed clinical profile. Use the real chemical formula and SMILES string if provided above. Generate a unique alphanumeric compound ID (e.g., AEGIS-742X) for our internal tracking. Provide the estimated manufacturing cost per dose, its mechanism of action, a detailed rationale explaining exactly WHY this specific molecular structure and mechanism target the specified disease, binding affinity (e.g., Ki or IC50), estimated half-life, bioavailability, solubility, pKa, predicted drug-drug interactions, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
+
+  if (agenticMode) {
+    prompt = `${slmInstruction}Act as an autonomous AI drug discovery agent (Aegis 2035). You are tasked with optimizing a base compound into a NOVEL, mathematically superior derivative through a high-throughput agentic loop.
+Base Compound Identified: "${compoundName}"
+Disease: ${disease}
+Target Receptors: ${receptors}
+
+${pubchemData ? `
+Base Empirical Data:
+- SMILES: ${pubchemData.CanonicalSMILES || 'N/A'}
+- Molecular Weight: ${pubchemData.MolecularWeight || 'N/A'} g/mol
+` : ''}
+
+AGENTIC LOOP INSTRUCTIONS:
+1. Simulate the generation of 10,000 initial molecular candidates based on the base compound.
+2. Run a simulated high-throughput in-silico screening to select the top 1% (100 candidates).
+3. Analyze the base compound's SMILES string and its known binding deficiencies or toxicity risks.
+4. Perform an in-silico quantum-mechanical mutation on the top candidates (e.g., adding a fluorine atom to improve metabolic stability, modifying a functional group to increase binding affinity to ${receptors} and reduce toxicity).
+5. Re-simulate binding affinities and finalize the single most mathematically perfect molecule.
+6. Generate the NOVEL SMILES string for this optimized derivative.
+7. Provide a detailed clinical profile for this NEW, optimized compound.
+8. Include an 'optimizationLog' array detailing the specific iterative steps you took in this loop (e.g., "Generated 10,000 variants", "Screened top 1%", "Mutated SMILES to reduce hepatotoxicity", "Finalized AEGIS-X").
+
+Provide the estimated manufacturing cost per dose, its mechanism of action, a detailed rationale explaining exactly WHY this specific mutated molecular structure is superior, binding affinity (e.g., Ki or IC50), estimated half-life, bioavailability, solubility, pKa, predicted drug-drug interactions, a list of active synthetic ingredients, and identify the 3 closest existing medicines globally with their estimated pricing and similarity score.`;
+  }
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      name: { type: Type.STRING, description: agenticMode ? "The name of the novel derivative (e.g., 'Fluoro-Osimertinib Analog')" : "The real drug/compound name" },
+      compoundId: { type: Type.STRING, description: "A unique alphanumeric compound identifier (e.g., AEGIS-742X)" },
+      chemicalFormula: { type: Type.STRING, description: "Chemical formula (e.g. C22H28FN3O6S)" },
+      smilesString: { type: Type.STRING, description: "Valid SMILES string representing the molecular structure" },
+      molecularStructure: { type: Type.STRING, description: "Text description of the molecular structure" },
+      manufacturingCost: { type: Type.STRING, description: "Estimated manufacturing cost per dose (e.g. $1.25/dose)" },
+      mechanismOfAction: { type: Type.STRING, description: "Detailed clinical mechanism of action" },
+      rationale: { type: Type.STRING, description: "Detailed scientific explanation of WHY this specific molecular structure and mechanism of action target the specified disease/condition." },
+      bindingAffinity: { type: Type.STRING, description: "Binding affinity (e.g., Ki = 4.2 nM or IC50 = 12 nM)" },
+      halfLife: { type: Type.STRING, description: "Estimated half-life (e.g., 14.5 hours)" },
+      bioavailability: { type: Type.STRING, description: "Estimated bioavailability (e.g., 78% oral)" },
+      solubility: { type: Type.STRING, description: "Aqueous solubility (e.g., 0.15 mg/mL at pH 7.4)" },
+      pKa: { type: Type.STRING, description: "Acid dissociation constant (e.g., 8.2 (basic))" },
+      saScore: { type: Type.NUMBER, description: "Synthetic Accessibility Score from 1 to 10 (1 is very easy to synthesize, 10 is very difficult)" },
+      interactingResidues: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of interacting residues in the protein pocket (e.g., ['TYR', 'SER', 'ASP'])" },
+      drugInteractions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Predicted drug-drug interactions (e.g., CYP3A4 inhibitors)" },
+      activeIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+      closestMedicines: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            manufacturer: { type: Type.STRING },
+            priceEstimate: { type: Type.STRING },
+            similarityScore: { type: Type.NUMBER, description: "0-100 score" },
+          },
+          required: ["name", "manufacturer", "priceEstimate", "similarityScore"],
+        },
+      },
+      optimizationLog: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Log of agentic iterations (only if agenticMode is true)" }
+    },
+    required: ["name", "compoundId", "chemicalFormula", "smilesString", "molecularStructure", "manufacturingCost", "mechanismOfAction", "rationale", "bindingAffinity", "halfLife", "bioavailability", "solubility", "pKa", "saScore", "drugInteractions", "activeIngredients", "closestMedicines"],
+  };
+
+  let finalResult = await generateStructuredContent(prompt, schema);
+
+  if (pubchemData && !agenticMode) {
+    finalResult = {
+      ...finalResult,
+      cid: pubchemData.CID,
+      iupacName: pubchemData.IUPACName,
+      chemicalFormula: pubchemData.MolecularFormula || finalResult.chemicalFormula,
+      smilesString: pubchemData.CanonicalSMILES || finalResult.smilesString,
+    };
+  } else if (pubchemData && agenticMode) {
+    finalResult = {
+      ...finalResult,
+      baseSmiles: pubchemData.CanonicalSMILES
+    };
+  }
+
+  return finalResult;
 };
 
 export interface ProtocolOptimizationResult {
@@ -227,7 +402,7 @@ Provide a realistic estimate of the eligible population and 2-3 actionable sugge
   return await generateStructuredContent(prompt, schema);
 };
 
-export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams, csvData?: string, useSlm: boolean = false): Promise<TrialResult> => {
+export const simulateTrial = async (formulationName: string, mechanism: string, params: TrialParams, csvData?: string, useSlm: boolean = false, slmContext?: string): Promise<TrialResult> => {
   // --- DETERMINISTIC PREDICTIVE ENGINE ---
   let inSilicoSuccess, inVitroSuccess, overallViability, patientAdherenceScore, efficacyOverTime;
   let historicalMatches: any[] = [];
@@ -255,39 +430,84 @@ export const simulateTrial = async (formulationName: string, mechanism: string, 
     efficacyOverTime = prediction.efficacyOverTime;
     historicalMatches = prediction.historicalMatches;
   } else {
-    // Fallback scaffolding
-    let baseSuccess = 60;
-    if (params.phase === 'Phase 1') baseSuccess = 75;
-    if (params.phase === 'Phase 2') baseSuccess = 55;
-    if (params.phase === 'Phase 3') baseSuccess = 40;
-
-    if (params.useSCA) baseSuccess += 12;
-    if (params.useAdaptiveDesign) baseSuccess += 15;
-    if (dosageNum > 500) baseSuccess -= 10;
-    
-    inSilicoSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess + (Math.random() * 10 - 5))));
-    inVitroSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess - 5 + (Math.random() * 10 - 5))));
-    overallViability = Math.round((inSilicoSuccess * 0.6) + (inVitroSuccess * 0.4));
-
-    let adherence = 85;
-    if (params.duration.includes('Year')) adherence -= 15;
-    if (dosageNum > 200) adherence -= 5;
-    patientAdherenceScore = Math.min(99, Math.max(20, Math.round(adherence + (Math.random() * 10 - 5))));
-
-    efficacyOverTime = [];
-    let currentEfficacy = 10;
-    for (let i = 1; i <= durationMonths; i++) {
-      currentEfficacy = Math.min(95, currentEfficacy + (Math.random() * 15));
-      const dataPoint: any = { month: i, efficacy: Math.round(currentEfficacy) };
-      if (params.useSCA) {
-        dataPoint.placeboEfficacy = Math.round(currentEfficacy * 0.3 + (Math.random() * 5));
+    // Call the new backend API for metrics
+    try {
+      const response = await fetch('/api/simulate-trial-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formulationName, mechanism, params })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        inSilicoSuccess = data.inSilicoSuccess;
+        inVitroSuccess = data.inVitroSuccess;
+        overallViability = data.overallViability;
+        patientAdherenceScore = data.patientAdherenceScore;
+        efficacyOverTime = data.efficacyOverTime;
+      } else {
+        throw new Error("API failed");
       }
-      efficacyOverTime.push(dataPoint);
+    } catch (e) {
+      console.error("Failed to fetch trial metrics from API, using fallback", e);
+      // Fallback scaffolding
+      let baseSuccess = 60;
+      if (params.phase === 'Phase 1') baseSuccess = 75;
+      if (params.phase === 'Phase 2') baseSuccess = 55;
+      if (params.phase === 'Phase 3') baseSuccess = 40;
+
+      if (params.useSCA) baseSuccess += 12;
+      if (params.useAdaptiveDesign) baseSuccess += 15;
+      if (dosageNum > 500) baseSuccess -= 10;
+      
+      inSilicoSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess + (Math.random() * 10 - 5))));
+      inVitroSuccess = Math.min(99, Math.max(10, Math.round(baseSuccess - 5 + (Math.random() * 10 - 5))));
+      overallViability = Math.round((inSilicoSuccess * 0.6) + (inVitroSuccess * 0.4));
+
+      let adherence = 85;
+      if (params.duration.includes('Year')) adherence -= 15;
+      if (dosageNum > 200) adherence -= 5;
+      patientAdherenceScore = Math.min(99, Math.max(20, Math.round(adherence + (Math.random() * 10 - 5))));
+
+      efficacyOverTime = [];
+      let currentEfficacy = 10;
+      for (let i = 1; i <= durationMonths; i++) {
+        currentEfficacy = Math.min(95, currentEfficacy + (Math.random() * 15));
+        const dataPoint: any = { month: i, efficacy: Math.round(currentEfficacy) };
+        if (params.useSCA) {
+          dataPoint.placeboEfficacy = Math.round(currentEfficacy * 0.3 + (Math.random() * 5));
+        }
+        efficacyOverTime.push(dataPoint);
+      }
     }
   }
   // --------------------------------------------
 
-  const slmInstruction = useSlm ? "You are Aegis-SLM-v1, a highly specialized fine-tuned model trained on expert human feedback. Your outputs must be exceptionally precise, scientifically rigorous, and prioritize novel, highly effective mechanisms over standard approaches. " : "";
+  // Fetch real ClinicalTrials.gov data
+  let realTrialData = null;
+  try {
+    const ctRes = await fetch('/api/clinicaltrials/stats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ intervention: params.diseaseSeverity || mechanism })
+    });
+    if (ctRes.ok) {
+      const ctJson = await ctRes.json();
+      if (ctJson.success && ctJson.trials && ctJson.trials.length > 0) {
+        realTrialData = ctJson.trials;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to fetch ClinicalTrials.gov data", e);
+  }
+
+  let slmInstruction = "";
+  if (useSlm) {
+    slmInstruction = "You are Aegis-SLM-v1, a highly specialized fine-tuned model trained on expert human feedback. Your outputs must be exceptionally precise, scientifically rigorous, and prioritize novel, highly effective mechanisms over standard approaches. ";
+    if (slmContext) {
+      slmInstruction += `\n\nCRITICAL TRAINING CONTEXT TO APPLY:\n${slmContext}\n\n`;
+    }
+  }
 
   const prompt = `${slmInstruction}Act as a lead clinical data scientist and toxicologist. Simulate highly realistic, clinically accurate in-silico and in-vitro trials for the novel drug "${formulationName}" with mechanism: "${mechanism}".
 
@@ -301,6 +521,13 @@ You MUST use the exact numbers provided below in your JSON output. Do NOT invent
 - patientAdherenceScore: ${patientAdherenceScore}
 - efficacyOverTime: ${JSON.stringify(efficacyOverTime)}
 ----------------------------------------------------------
+
+${realTrialData ? `
+--- REAL CLINICALTRIALS.GOV DATA ---
+The following are real, empirical clinical trials currently registered for this condition/mechanism. Use these to ground your simulation's narrative, expected adverse events, and realistic enrollment numbers:
+${realTrialData.map((t: any) => `- Trial: ${t.title} (Phase: ${t.phase?.join(', ') || 'Unknown'}, Status: ${t.status}, Enrollment: ${t.enrollment})`).join('\n')}
+------------------------------------
+` : ''}
 
 ${historicalMatches.length > 0 ? `
 --- HISTORICAL TRIAL MATCHES ---

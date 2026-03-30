@@ -11,10 +11,12 @@ interface PackagingPanelProps {
   trialParams: TrialParams | null;
   trialResult: TrialResult | null;
   formData: any;
+  qsarData?: any;
+  dockingData?: any;
   onReset: () => void;
 }
 
-export default function PackagingPanel({ result, formulation, trialParams, trialResult, formData, onReset }: PackagingPanelProps) {
+export default function PackagingPanel({ result, formulation, trialParams, trialResult, formData, qsarData, dockingData, onReset }: PackagingPanelProps) {
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
   const handleExportHypothesis = () => {
@@ -144,6 +146,36 @@ export default function PackagingPanel({ result, formulation, trialParams, trial
           doc.text(`- ${group.group}: ${group.efficacy}% efficacy (n=${group.sampleSize})`, 25, clinY);
           clinY += 10;
         });
+      }
+
+      if (dockingData && !dockingData.error) {
+        clinY += 10;
+        doc.setFont("helvetica", "bold");
+        doc.text("Molecular Docking (Vina)", 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+        doc.text(`Binding Energy: ${dockingData.bindingEnergy} kcal/mol`, 20, clinY);
+        clinY += 10;
+        doc.text(`Spatial Fit Score: ${dockingData.spatialFitScore}/100`, 20, clinY);
+        clinY += 10;
+        doc.text(`Interacting Residues: ${dockingData.interactingResidues?.join(', ') || 'N/A'}`, 20, clinY);
+        clinY += 10;
+      }
+
+      if (qsarData && !qsarData.error) {
+        clinY += 10;
+        doc.setFont("helvetica", "bold");
+        doc.text("QSAR Predictions", 20, clinY);
+        doc.setFont("helvetica", "normal");
+        clinY += 10;
+        doc.text(`Toxicity (LD50): ${qsarData.toxicityLD50} mg/kg`, 20, clinY);
+        clinY += 10;
+        doc.text(`Solubility: ${qsarData.solubility} mg/mL`, 20, clinY);
+        clinY += 10;
+        doc.text(`Clearance Rate: ${qsarData.clearanceRate} mL/min/kg`, 20, clinY);
+        clinY += 10;
+        doc.text(`LogP: ${qsarData.logP}`, 20, clinY);
+        clinY += 10;
       }
 
       // Module 3: Quality (Packaging & Logistics)

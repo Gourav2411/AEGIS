@@ -16,6 +16,11 @@ service cloud.firestore {
           (request.auth.token.email == "gourav.k.24@gmail.com" && request.auth.token.email_verified == true));
     }
     
+    function isScientist() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'scientist' || isAdmin());
+    }
+    
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -115,6 +120,24 @@ service cloud.firestore {
              isValidOptionalString('comments', 0, 10000);
     }
 
+    function isValidAuditLog(data) {
+      return hasRequiredFields(['userId', 'action', 'details', 'timestamp']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.action is string && data.action.size() > 0 && data.action.size() < 100 &&
+             data.details is string && data.details.size() <= 1000000 &&
+             data.timestamp is timestamp &&
+             isValidOptionalString('ipAddress', 0, 100);
+    }
+
+    function isValidSavedFormulation(data) {
+      return hasRequiredFields(['userId', 'name', 'smilesString', 'mechanismOfAction', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.smilesString is string && data.smilesString.size() > 0 && data.smilesString.size() < 10000 &&
+             data.mechanismOfAction is string && data.mechanismOfAction.size() > 0 && data.mechanismOfAction.size() < 100000 &&
+             data.createdAt is timestamp;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && 
@@ -131,11 +154,24 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || isAdmin();
     }
 
+    match /saved_formulations/{formulationId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidSavedFormulation(request.resource.data) && 
+                       uidUnchanged();
+      allow update: if isDocOwner() && 
+                       isValidSavedFormulation(request.resource.data) && 
+                       uidNotModified() &&
+                       areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isDocOwner();
+    }
+
     match /models/{modelId} {
       allow read: if isAuthenticated();
-      allow create: if isAdmin() && 
+      allow create: if isScientist() && 
                        isValidSlmModel(request.resource.data);
-      allow update: if isAdmin() && 
+      allow update: if isScientist() && 
                        isValidSlmModel(request.resource.data) && 
                        areImmutableFieldsUnchanged(['createdAt']);
       allow delete: if isAdmin();
@@ -165,6 +201,16 @@ service cloud.firestore {
                        uidNotModified() &&
                        areImmutableFieldsUnchanged(['createdAt', 'projectId', 'stage', 'inputContext', 'generatedOutput']);
       allow delete: if isDocOwner();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid &&
+                       isValidAuditLog(request.resource.data) && 
+                       uidUnchanged();
+      allow update: if false; // Immutable
+      allow delete: if false; // Immutable
     }
   }
 }

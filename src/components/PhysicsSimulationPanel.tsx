@@ -11,9 +11,14 @@ interface PhysicsSimulationPanelProps {
   onReset: () => void;
   onOptimize: () => void;
   loading: boolean;
+  onQsarData?: (data: any) => void;
+  onDockingData?: (data: any) => void;
 }
 
-export default function PhysicsSimulationPanel({ formulation, receptor, onNext, onReset, onOptimize, loading }: PhysicsSimulationPanelProps) {
+export default function PhysicsSimulationPanel({ formulation, receptor, onNext, onReset, onOptimize, loading, onQsarData, onDockingData }: PhysicsSimulationPanelProps) {
+  const initialSmiles = formulation.smilesString || formulation.molecularStructure || 'CC(=O)OC1=CC=CC=C1C(=O)O';
+  const [customSmiles, setCustomSmiles] = useState(initialSmiles);
+  const [inputSmiles, setInputSmiles] = useState(initialSmiles);
   const [qsarData, setQsarData] = useState<any>(null);
   const [comparisonData, setComparisonData] = useState<any>(null);
   const [dockingData, setDockingData] = useState<any>(null);
@@ -22,46 +27,64 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
   const [loadingDocking, setLoadingDocking] = useState(true);
   const [dockingError, setDockingError] = useState<string | null>(null);
 
-  const smiles = formulation.smilesString || formulation.molecularStructure || 'CC(=O)OC1=CC=CC=C1C(=O)O'; // Fallback to Aspirin if missing
-
   useEffect(() => {
     // Call QSAR Backend
+    setLoadingQsar(true);
     fetch('/api/qsar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ smiles })
+      body: JSON.stringify({ smiles: customSmiles })
     })
-      .then(res => res.json())
+      .then(async res => {
+        const contentType = res.headers.get("content-type");
+        if (!contentType || contentType.indexOf("application/json") === -1) {
+          throw new Error("QSAR response was not JSON");
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'QSAR server error');
+        return data;
+      })
       .then(data => {
         setQsarData(data);
+        if (onQsarData) onQsarData(data);
         setLoadingQsar(false);
       })
       .catch(err => {
         console.error(err);
+        setQsarData({ error: err.message });
+        if (onQsarData) onQsarData({ error: err.message });
         setLoadingQsar(false);
       });
 
     // Call Docking Backend
+    setLoadingDocking(true);
     setDockingError(null);
     fetch('/api/docking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ smiles, receptor })
+      body: JSON.stringify({ smiles: customSmiles, receptor })
     })
-      .then(res => {
-        if (!res.ok) throw new Error('Docking server responded with an error');
-        return res.json();
+      .then(async res => {
+        const contentType = res.headers.get("content-type");
+        if (!contentType || contentType.indexOf("application/json") === -1) {
+          throw new Error("Docking response was not JSON");
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Docking server error');
+        return data;
       })
       .then(data => {
         setDockingData(data);
+        if (onDockingData) onDockingData(data);
         setLoadingDocking(false);
       })
       .catch(err => {
         console.error(err);
-        setDockingError('Failed to connect to the docking server. Please check your network connection or try a different receptor target.');
+        setDockingError(err.message || 'Failed to connect to the docking server.');
+        if (onDockingData) onDockingData({ error: err.message || 'Failed to connect to the docking server.' });
         setLoadingDocking(false);
       });
-  }, [smiles, receptor]);
+  }, [customSmiles, receptor]);
 
   return (
     <motion.div 
@@ -80,15 +103,39 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+        {/* Custom SMILES Input */}
+        <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
+          <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Dna className="w-4 h-4" /> Custom SMILES Input
+          </h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inputSmiles}
+              onChange={(e) => setInputSmiles(e.target.value)}
+              className="flex-1 bg-black/30 border border-cyan-900/50 rounded px-3 py-2 text-sm text-cyan-100 focus:outline-none focus:border-neon-cyan font-mono"
+              placeholder="Enter SMILES string (e.g., CC(=O)OC1=CC=CC=C1C(=O)O)"
+            />
+            <button
+              onClick={() => setCustomSmiles(inputSmiles)}
+              className="bg-cyan-900/50 hover:bg-cyan-800/50 text-cyan-100 px-4 py-2 rounded text-sm transition-colors uppercase tracking-wider font-bold"
+            >
+              Analyze
+            </button>
+          </div>
+        </div>
+
         {/* 3D Visualization */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
           <h3 className="text-xs text-cyan-500/70 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <Layers className="w-4 h-4" /> 3D Molecular Structure (SMILES: {smiles})
+            <Layers className="w-4 h-4" /> 3D Molecular Structure (SMILES: {customSmiles})
           </h3>
           <div className="w-full h-64 rounded-lg overflow-hidden relative">
             <MolecularViewer 
-              smiles={smiles} 
+              smiles={customSmiles} 
               interactingResidues={dockingData?.interactingResidues} 
+              receptor={receptor}
+              fallbackName={formulation.closestMedicines?.[0]?.name}
             />
           </div>
         </div>
@@ -114,7 +161,13 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ smiles: compSmiles })
                   })
-                    .then(res => res.json())
+                    .then(async res => {
+                      const contentType = res.headers.get("content-type");
+                      if (!contentType || contentType.indexOf("application/json") === -1) {
+                        throw new Error("QSAR response was not JSON");
+                      }
+                      return res.json();
+                    })
                     .then(data => setComparisonData(data))
                     .catch(err => console.error(err));
 
@@ -123,7 +176,13 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ smiles: compSmiles, receptor })
                   })
-                    .then(res => res.json())
+                    .then(async res => {
+                      const contentType = res.headers.get("content-type");
+                      if (!contentType || contentType.indexOf("application/json") === -1) {
+                        throw new Error("Docking response was not JSON");
+                      }
+                      return res.json();
+                    })
                     .then(data => setComparisonDockingData(data))
                     .catch(err => console.error(err));
                 }}
@@ -141,24 +200,46 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
               <div className="flex items-center justify-center h-32 text-cyan-500/50">
                 <RefreshCw className="w-6 h-6 animate-spin" />
               </div>
+            ) : qsarData?.error ? (
+              <div className="flex flex-col items-center justify-center h-32 text-red-400 text-center p-4">
+                <AlertTriangle className="w-6 h-6 mb-2" />
+                <p className="text-xs">{qsarData.error}</p>
+                <p className="text-[10px] mt-2 text-red-400/70">Deploy the Python Microservice to AWS/GCP to run real QSAR calculations.</p>
+              </div>
             ) : qsarData ? (
               <div className="space-y-4">
-                <div className="flex justify-between border-b border-cyan-900/30 pb-2">
-                  <span className="text-cyan-500">Toxicity (LD50)</span>
-                  <div className="text-right">
-                    <span className="text-cyan-100">{qsarData.toxicityLD50} mg/kg</span>
-                    {comparisonData && (
-                      <span className="text-cyan-500/50 text-xs ml-2">vs {comparisonData.toxicityLD50}</span>
-                    )}
+                <div className="flex flex-col border-b border-cyan-900/30 pb-2">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-cyan-500">Toxicity (LD50)</span>
+                    <div className="text-right">
+                      <span className="text-cyan-100">{qsarData.toxicityLD50} mg/kg</span>
+                      {comparisonData && (
+                        <span className="text-cyan-500/50 text-xs ml-2">vs {comparisonData.toxicityLD50}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-full bg-cyan-950/50 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-red-400 h-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, (Number(qsarData.toxicityLD50) / 5000) * 100)}%` }}
+                    />
                   </div>
                 </div>
-                <div className="flex justify-between border-b border-cyan-900/30 pb-2">
-                  <span className="text-cyan-500">Solubility</span>
-                  <div className="text-right">
-                    <span className="text-cyan-100">{qsarData.solubility} mg/mL</span>
-                    {comparisonData && (
-                      <span className="text-cyan-500/50 text-xs ml-2">vs {comparisonData.solubility}</span>
-                    )}
+                <div className="flex flex-col border-b border-cyan-900/30 pb-2">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-cyan-500">Solubility</span>
+                    <div className="text-right">
+                      <span className="text-cyan-100">{qsarData.solubility} mg/mL</span>
+                      {comparisonData && (
+                        <span className="text-cyan-500/50 text-xs ml-2">vs {comparisonData.solubility}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-full bg-cyan-950/50 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-blue-400 h-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, (Number(qsarData.solubility) / 100) * 100)}%` }}
+                    />
                   </div>
                 </div>
                 <div className="flex justify-between border-b border-cyan-900/30 pb-2">
@@ -201,6 +282,7 @@ export default function PhysicsSimulationPanel({ formulation, receptor, onNext, 
               <div className="flex flex-col items-center justify-center h-32 text-center space-y-2">
                 <AlertTriangle className="w-8 h-8 text-red-400" />
                 <p className="text-xs text-red-400">{dockingError}</p>
+                <p className="text-[10px] mt-2 text-red-400/70">Deploy the Python Microservice to AWS/GCP to run real AutoDock Vina simulations.</p>
               </div>
             ) : dockingData ? (
               <div className="space-y-4">

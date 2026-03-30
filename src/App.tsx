@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network, LogOut, User as UserIcon, BrainCircuit } from 'lucide-react';
-import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams } from './services/geminiService';
+import { Activity, Beaker, Dna, Package, ShieldAlert, Cpu, Database, Network, LogOut, User as UserIcon, BrainCircuit, Shield } from 'lucide-react';
+import { generateFormulation, simulateTrial, generatePackaging, FormulationResult, TrialResult, PackagingResult, TrialParams, setGeminiApiKey } from './services/geminiService';
 import InputPanel from './components/InputPanel';
 import FormulationPanel from './components/FormulationPanel';
 import PhysicsSimulationPanel from './components/PhysicsSimulationPanel';
@@ -11,13 +11,16 @@ import PackagingPanel from './components/PackagingPanel';
 import Visualizer from './components/Visualizer';
 import JarvisAssistant from './components/JarvisAssistant';
 import Login from './components/Login';
+import LoginScreen from './components/LoginScreen';
 import ProfilePage from './components/ProfilePage';
 import SlmStudio from './components/SlmStudio';
+import EnterpriseHub from './components/EnterpriseHub';
 import AdminDashboard from './components/AdminDashboard';
 import LiveOptimization from './components/LiveOptimization';
 import { auth, db, logout } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { logAuditAction, sanitizePHI } from './lib/compliance';
 
 export type Step = 'input' | 'formulation' | 'physics' | 'trial-input' | 'trial' | 'packaging';
 
@@ -27,6 +30,7 @@ export interface FormData {
   category: string;
   receptors: string;
   agenticMode?: boolean;
+  useBioNeMo?: boolean;
   pdbFile?: File | null;
   optimizationParams?: {
     toxicity: number;
@@ -92,8 +96,12 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [asyncError, setAsyncError] = useState<Error | null>(null);
-  const [currentView, setCurrentView] = useState<'app' | 'profile' | 'slm-studio' | 'admin'>('app');
+  const [currentView, setCurrentView] = useState<'app' | 'profile' | 'slm-studio' | 'admin' | 'enterprise'>('app');
   const [useSlm, setUseSlm] = useState(false);
+  const [enterpriseRole, setEnterpriseRole] = useState<string | null>(null);
+  const [adminMode, setAdminMode] = useState(() => {
+    return localStorage.getItem('gemini_api_key') === 'AI_STUDIO_ADMIN';
+  });
 
   const [step, setStep] = useState<Step>('input');
   const handleSetStep = async (newStep: Step) => {
@@ -111,12 +119,17 @@ export default function App() {
   });
 
   const [formulationResult, setFormulationResult] = useState<FormulationResult | null>(null);
+  const [qsarData, setQsarData] = useState<any>(null);
+  const [dockingData, setDockingData] = useState<any>(null);
   const [trialResult, setTrialResult] = useState<TrialResult | null>(null);
   const [trialParams, setTrialParams] = useState<TrialParams | null>(null);
   const [packagingResult, setPackagingResult] = useState<PackagingResult | null>(null);
   const [csvData, setCsvData] = useState<string | null>(null);
   const [hasDeployedSlm, setHasDeployedSlm] = useState(false);
+  const [slmContext, setSlmContext] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isScientist, setIsScientist] = useState(false);
+  const [userRole, setUserRole] = useState<string>('user');
 
   if (asyncError) {
     throw asyncError;
@@ -135,12 +148,21 @@ export default function App() {
       // Fetch user profile for role
       const userRef = doc(db, 'users', user.uid);
       const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
+        let role = 'user';
         if (docSnap.exists()) {
-          const data = docSnap.data();
-          setIsAdmin(data.role === 'admin' || user.email === 'gourav.k.24@gmail.com');
-        } else if (user.email === 'gourav.k.24@gmail.com') {
-          setIsAdmin(true);
+          role = docSnap.data().role || 'user';
         }
+        
+        // Override for specific admin email or enterprise role
+        if (user.email === 'gourav.k.24@gmail.com' || enterpriseRole === 'System Administrator') {
+          role = 'admin';
+        } else if (enterpriseRole === 'Lead Scientist' && role === 'user') {
+          role = 'scientist';
+        }
+        
+        setUserRole(role);
+        setIsAdmin(role === 'admin');
+        setIsScientist(role === 'scientist' || role === 'admin');
       });
 
       // Fetch project state
@@ -154,6 +176,8 @@ export default function App() {
           if (data.trialParams) setTrialParams(JSON.parse(data.trialParams));
           if (data.trialResult) setTrialResult(JSON.parse(data.trialResult));
           if (data.packagingResult) setPackagingResult(JSON.parse(data.packagingResult));
+          if (data.qsarData) setQsarData(JSON.parse(data.qsarData));
+          if (data.dockingData) setDockingData(JSON.parse(data.dockingData));
         }
       }, (error) => {
         try {
@@ -169,6 +193,7 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setHasDeployedSlm(data.status === 'deployed');
+          setSlmContext(data.trainingContext || '');
           if (data.status !== 'deployed') {
             setUseSlm(false);
           }
@@ -181,7 +206,7 @@ export default function App() {
         unsubscribeModel();
       };
     }
-  }, [user, authReady]);
+  }, [user, authReady, enterpriseRole]);
 
   const saveStateToFirestore = async (updates: any) => {
     if (!user) return;
@@ -221,9 +246,25 @@ export default function App() {
   };
 
   const handleGenerateFormulation = async (data: FormData) => {
-    setFormData(data);
+    // Sanitize PHI from inputs before processing
+    const sanitizedData = {
+      ...data,
+      disease: sanitizePHI(data.disease),
+      cureRequired: sanitizePHI(data.cureRequired),
+      receptors: sanitizePHI(data.receptors)
+    };
+
+    setFormData(sanitizedData);
     setLoading(true);
     
+    // Log the audit action
+    await logAuditAction('DRUG_DISCOVERY_INITIATED', {
+      disease: sanitizedData.disease,
+      category: sanitizedData.category,
+      agenticMode: sanitizedData.agenticMode,
+      useSlm: useSlm
+    });
+
     let interval: NodeJS.Timeout | null = null;
     
     if (data.agenticMode) {
@@ -250,21 +291,21 @@ export default function App() {
 
     try {
       let pdbFileContent: string | undefined = undefined;
-      if (data.pdbFile) {
+      if (sanitizedData.pdbFile) {
         pdbFileContent = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => resolve(e.target?.result as string);
           reader.onerror = (e) => reject(e);
-          reader.readAsText(data.pdbFile!);
+          reader.readAsText(sanitizedData.pdbFile!);
         });
       }
 
-      const result = await generateFormulation(data.disease, data.cureRequired, data.category, data.receptors, data.agenticMode, useSlm, pdbFileContent);
+      const result = await generateFormulation(sanitizedData.disease, sanitizedData.cureRequired, sanitizedData.category, sanitizedData.receptors, sanitizedData.agenticMode, useSlm, pdbFileContent, sanitizedData.useBioNeMo, slmContext);
       if (interval) clearInterval(interval);
       setFormulationResult(result);
       setStep('formulation');
       await saveStateToFirestore({
-        formData: JSON.stringify(data),
+        formData: JSON.stringify(sanitizedData),
         formulationResult: JSON.stringify(result),
         step: 'formulation'
       });
@@ -279,11 +320,19 @@ export default function App() {
 
   const handleSimulateTrial = async (params: TrialParams) => {
     if (!formulationResult) return;
+    
+    // Log the audit action
+    await logAuditAction('TRIAL_SIMULATION_INITIATED', {
+      compoundName: formulationResult.name,
+      params: params,
+      useSlm: useSlm
+    });
+
     setTrialParams(params);
     setLoading(true);
     setLoadingText('Running in-silico and in-vitro simulations...');
     try {
-      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params, csvData || undefined, useSlm);
+      const result = await simulateTrial(formulationResult.name, formulationResult.mechanismOfAction, params, csvData || undefined, useSlm, slmContext);
       setTrialResult(result);
       setStep('trial');
       await saveStateToFirestore({
@@ -301,6 +350,13 @@ export default function App() {
 
   const handleGeneratePackaging = async () => {
     if (!formulationResult) return;
+
+    // Log the audit action
+    await logAuditAction('PACKAGING_GENERATION_INITIATED', {
+      compoundName: formulationResult.name,
+      category: formData.category
+    });
+
     setLoading(true);
     setLoadingText('Designing supply chain and packaging protocols...');
     try {
@@ -322,6 +378,8 @@ export default function App() {
   const resetSystem = async () => {
     setStep('input');
     setFormulationResult(null);
+    setQsarData(null);
+    setDockingData(null);
     setTrialResult(null);
     setPackagingResult(null);
     setFormData({ disease: '', cureRequired: '', category: 'Small Molecule', receptors: '' });
@@ -331,6 +389,8 @@ export default function App() {
         step: 'input',
         formData: null,
         formulationResult: null,
+        qsarData: null,
+        dockingData: null,
         trialParams: null,
         trialResult: null,
         packagingResult: null
@@ -346,8 +406,18 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  if (!enterpriseRole) {
+    return <LoginScreen onLogin={(role) => setEnterpriseRole(role)} />;
+  }
+
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden pt-8">
+      {/* FDA RUO Banner */}
+      <div className="fixed top-0 left-0 right-0 bg-yellow-500/20 border-b border-yellow-500/50 text-yellow-500 text-[10px] md:text-xs font-mono text-center py-1 z-50 flex items-center justify-center gap-2 uppercase tracking-widest backdrop-blur-sm">
+        <ShieldAlert className="w-3 h-3" />
+        For Research Use Only (RUO). Not for use in diagnostic procedures. Not FDA cleared or approved.
+      </div>
+
       <div className="scanline"></div>
       
       {/* Background Grid */}
@@ -366,6 +436,35 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-6 font-mono text-xs text-cyan-500/70">
+          <div className={`flex items-center gap-2 px-3 py-1.5 border rounded ${
+            userRole === 'admin' ? 'bg-purple-900/10 border-purple-500/30 text-purple-400' :
+            userRole === 'scientist' ? 'bg-blue-900/10 border-blue-500/30 text-blue-400' :
+            'bg-cyan-900/10 border-cyan-500/30 text-cyan-400'
+          }`}>
+            <span>ROLE: {userRole.toUpperCase()}</span>
+          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-900/10 border border-cyan-500/30 rounded">
+              <span className="text-cyan-400">ADMIN MODE</span>
+              <button 
+                onClick={() => {
+                  if (adminMode) {
+                    const key = prompt("Enter your Gemini API Key:");
+                    if (key) {
+                      setGeminiApiKey(key);
+                      setAdminMode(false);
+                    }
+                  } else {
+                    setGeminiApiKey('AI_STUDIO_ADMIN');
+                    setAdminMode(true);
+                  }
+                }}
+                className={`w-8 h-4 rounded-full relative transition-colors ${adminMode ? 'bg-cyan-500' : 'bg-cyan-900/50'}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${adminMode ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          )}
           {hasDeployedSlm && currentView === 'app' && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/10 border border-purple-500/30 rounded">
               <span className="text-purple-400">AEGIS-SLM</span>
@@ -394,12 +493,27 @@ export default function App() {
                 <ShieldAlert className="w-4 h-4" />
                 <span className="hidden sm:inline">{currentView === 'admin' ? 'BACK TO APP' : 'ADMIN PANEL'}</span>
               </button>
+            </>
+          )}
+          {isScientist && (
+            <>
               <button 
                 onClick={() => setCurrentView(currentView === 'slm-studio' ? 'app' : 'slm-studio')}
                 className={`flex items-center gap-2 px-3 py-1.5 border rounded transition-colors ${currentView === 'slm-studio' ? 'bg-purple-900/20 border-purple-500 text-purple-400' : 'border-cyan-900/50 hover:bg-cyan-900/30 hover:text-cyan-300'}`}
               >
                 <BrainCircuit className="w-4 h-4" />
                 <span className="hidden sm:inline">{currentView === 'slm-studio' ? 'BACK TO APP' : 'SLM STUDIO'}</span>
+              </button>
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => setCurrentView(currentView === 'enterprise' ? 'app' : 'enterprise')}
+                className={`flex items-center gap-2 px-3 py-1.5 border rounded transition-colors ${currentView === 'enterprise' ? 'bg-emerald-900/20 border-emerald-500 text-emerald-400' : 'border-cyan-900/50 hover:bg-cyan-900/30 hover:text-cyan-300'}`}
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">{currentView === 'enterprise' ? 'BACK TO APP' : 'ENTERPRISE HUB'}</span>
               </button>
             </>
           )}
@@ -431,6 +545,10 @@ export default function App() {
           <div className="w-full h-full glass-panel rounded-xl p-6 overflow-y-auto">
             <SlmStudio onBack={() => setCurrentView('app')} />
           </div>
+        ) : currentView === 'enterprise' ? (
+          <div className="w-full h-full glass-panel rounded-xl p-6 overflow-y-auto">
+            <EnterpriseHub />
+          </div>
         ) : currentView === 'admin' ? (
           <div className="w-full h-full glass-panel rounded-xl p-6 overflow-y-auto">
             <AdminDashboard onBack={() => setCurrentView('app')} />
@@ -440,7 +558,7 @@ export default function App() {
             {/* Left Panel - Visualizer */}
             <div className="w-full lg:w-1/3 h-full flex flex-col gap-6">
           <div className="glass-panel flex-1 rounded-xl p-6 flex flex-col items-center justify-center relative overflow-hidden">
-            <Visualizer step={step} loading={loading} trialResult={trialResult} formulationResult={formulationResult} pdbFile={formData?.pdbFile} />
+            <Visualizer step={step} loading={loading} trialResult={trialResult} formulationResult={formulationResult} pdbFile={formData?.pdbFile} receptors={formData?.receptors} />
             
             {/* Status Overlay */}
             <div className="absolute bottom-4 left-4 right-4 font-mono text-xs">
@@ -492,6 +610,7 @@ export default function App() {
               onReset={resetSystem}
               loading={loading} 
               formData={formData}
+              useSlm={useSlm}
             />
           )}
 
@@ -507,6 +626,14 @@ export default function App() {
                 }
               }}
               loading={loading}
+              onQsarData={(data) => {
+                setQsarData(data);
+                saveStateToFirestore({ qsarData: JSON.stringify(data) });
+              }}
+              onDockingData={(data) => {
+                setDockingData(data);
+                saveStateToFirestore({ dockingData: JSON.stringify(data) });
+              }}
             />
           )}
 
@@ -528,9 +655,12 @@ export default function App() {
               formulation={formulationResult}
               formData={formData}
               trialParams={trialParams}
+              qsarData={qsarData}
+              dockingData={dockingData}
               onNext={handleGeneratePackaging} 
               onReset={resetSystem}
               loading={loading} 
+              useSlm={useSlm}
             />
           )}
 
@@ -541,6 +671,8 @@ export default function App() {
               trialParams={trialParams}
               trialResult={trialResult}
               formData={formData}
+              qsarData={qsarData}
+              dockingData={dockingData}
               onReset={resetSystem} 
             />
           )}

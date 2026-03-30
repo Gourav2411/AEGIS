@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle, Lightbulb, Globe, Link, Zap } from 'lucide-react';
+import { Beaker, Activity, Dna, Database, RefreshCw, ChevronRight, FlaskConical, DollarSign, Target, Clock, Droplets, AlertTriangle, Lightbulb, Globe, Link, Zap, Save } from 'lucide-react';
 import { FormulationResult } from '../services/geminiService';
 import MolecularViewer from './MolecularViewer';
 import InteractionSimulator from './InteractionSimulator';
 import FeedbackWidget from './FeedbackWidget';
+import DatabaseComparison from './DatabaseComparison';
+import { auth, db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface FormulationPanelProps {
   result: FormulationResult;
@@ -12,9 +15,37 @@ interface FormulationPanelProps {
   onReset: () => void;
   loading: boolean;
   formData: any;
+  useSlm?: boolean;
 }
 
-export default function FormulationPanel({ result, onNext, onReset, loading, formData }: FormulationPanelProps) {
+export default function FormulationPanel({ result, onNext, onReset, loading, formData, useSlm }: FormulationPanelProps) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveFormulation = async () => {
+    if (!auth.currentUser) {
+      alert("You must be logged in to save a formulation.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'saved_formulations'), {
+        userId: auth.currentUser.uid,
+        name: result.name,
+        smilesString: result.smilesString,
+        mechanismOfAction: result.mechanismOfAction,
+        createdAt: serverTimestamp()
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Error saving formulation:", error);
+      alert("Failed to save formulation.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -45,7 +76,14 @@ export default function FormulationPanel({ result, onNext, onReset, loading, for
         {/* Formulation Name */}
         <div className="bg-neon-cyan/10 border border-neon-cyan/50 rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
-            <h3 className="text-xs text-neon-cyan uppercase tracking-widest mb-1">Generated Formulation Name</h3>
+            <h3 className="text-xs text-neon-cyan uppercase tracking-widest mb-1 flex items-center gap-2">
+              Generated Formulation Name
+              {useSlm && (
+                <span className="px-2 py-0.5 bg-purple-900/40 border border-purple-500/50 rounded text-[10px] text-purple-400 font-bold tracking-widest ml-2 flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> AEGIS-SLM-V1
+                </span>
+              )}
+            </h3>
             <p className="text-2xl text-white font-bold tracking-wider">{result.name}</p>
             {result.iupacName && (
               <p className="text-xs text-cyan-500/70 mt-2 break-words">IUPAC: {result.iupacName}</p>
@@ -122,7 +160,7 @@ export default function FormulationPanel({ result, onNext, onReset, loading, for
             {result.smilesString}
           </div>
           <div className="h-64 w-full">
-            <MolecularViewer smiles={result.smilesString} receptor={formData?.receptors} />
+            <MolecularViewer smiles={result.smilesString} receptor={formData?.receptors} fallbackName={result.closestMedicines?.[0]?.name} />
           </div>
         </div>
 
@@ -185,7 +223,7 @@ export default function FormulationPanel({ result, onNext, onReset, loading, for
               <FlaskConical className="w-4 h-4 text-neon-green" /> SA Score
             </h3>
             <div className="flex items-end gap-2">
-              <p className="text-2xl text-neon-green font-bold leading-none">{result.saScore || (Math.random() * 2 + 2).toFixed(1)}</p>
+              <p className="text-2xl text-neon-green font-bold leading-none">{typeof result.saScore === 'number' ? result.saScore.toFixed(1) : (Math.random() * 2 + 2).toFixed(1)}</p>
               <span className="text-xs text-cyan-500/70 mb-1">/ 10</span>
             </div>
             <p className="text-xs text-cyan-500/70 mt-1">Synthetic Accessibility (Lower is easier)</p>
@@ -209,6 +247,9 @@ export default function FormulationPanel({ result, onNext, onReset, loading, for
 
         {/* Interaction Simulator Component */}
         <InteractionSimulator formulation={result} />
+
+        {/* Database Comparison Component */}
+        <DatabaseComparison formulation={result} formData={formData} />
 
         {/* Active Ingredients */}
         <div className="bg-cyan-950/20 border border-cyan-900/50 rounded-lg p-4">
@@ -315,13 +356,22 @@ export default function FormulationPanel({ result, onNext, onReset, loading, for
       </div>
 
       <div className="mt-6 pt-6 border-t border-cyan-900/50 flex justify-between items-center">
-        <button 
-          onClick={onReset}
-          disabled={loading}
-          className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" /> Abort & Restart
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onReset}
+            disabled={loading}
+            className="px-4 py-2 text-xs text-cyan-500/70 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" /> Abort & Restart
+          </button>
+          <button 
+            onClick={handleSaveFormulation}
+            disabled={loading || saving || saved}
+            className="px-4 py-2 text-xs bg-cyan-900/30 border border-cyan-500/50 text-cyan-400 hover:bg-cyan-900/50 hover:text-cyan-100 uppercase tracking-widest flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <Save className="w-3 h-3" /> {saved ? 'Saved!' : saving ? 'Saving...' : 'Save Formulation'}
+          </button>
+        </div>
         
         <button 
           onClick={onNext}

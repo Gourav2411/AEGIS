@@ -23,7 +23,9 @@ export const getEffectiveApiKey = () => {
   if (customApiKey === 'AI_STUDIO_ADMIN') {
     return process.env.GEMINI_API_KEY || 'missing-key';
   }
-  return customApiKey || process.env.GEMINI_API_KEY || 'missing-key';
+  const envKey = process.env.GEMINI_API_KEY;
+  const validCustomKey = (customApiKey && customApiKey !== 'undefined' && customApiKey !== 'null') ? customApiKey : '';
+  return validCustomKey || (envKey !== 'undefined' ? envKey : '') || 'missing-key';
 };
 
 // Helper to convert Gemini Type schema to standard JSON schema
@@ -84,12 +86,19 @@ export const generateStructuredContent = async (prompt: string, schema: any, sys
     if (useRAG) {
       config.tools = [{ googleSearch: {} }];
     }
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: prompt,
-      config,
-    });
-    return JSON.parse(response.text || "{}");
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+        config,
+      });
+      return JSON.parse(response.text || "{}");
+    } catch (error: any) {
+      if (error.status === 429 || (error.message && error.message.includes("429"))) {
+        throw new Error("Gemini API Quota Exceeded. Please check your plan and billing details, or try again later.");
+      }
+      throw error;
+    }
   } 
   
   if (currentProvider === 'openai') {
@@ -166,8 +175,15 @@ export const chatWithProvider = async (message: string, useDeepThink: boolean, u
     if (useDeepSearch) config.tools = [{ googleSearch: {} }];
 
     const chat = ai.chats.create({ model, config, history });
-    const response = await chat.sendMessage({ message });
-    return response.text || "I was unable to process that request.";
+    try {
+      const response = await chat.sendMessage({ message });
+      return response.text || "I was unable to process that request.";
+    } catch (error: any) {
+      if (error.status === 429 || (error.message && error.message.includes("429"))) {
+        throw new Error("Gemini API Quota Exceeded. Please check your plan and billing details, or try again later.");
+      }
+      throw error;
+    }
   }
 
   if (currentProvider === 'openai') {
@@ -263,7 +279,9 @@ export const generateClinicalTrialReport = async (
   formulation: any,
   trialResult: any,
   formData: any,
-  trialParams?: any
+  trialParams?: any,
+  qsarData?: any,
+  dockingData?: any
 ): Promise<string> => {
   const key = getEffectiveApiKey();
   if (key === 'missing-key') {
@@ -293,6 +311,17 @@ export const generateClinicalTrialReport = async (
   - Subgroup Analysis: ${JSON.stringify(trialResult.subgroupAnalysis)}
   ${trialParams?.useSCA ? `- Synthetic Control Arm (SCA) Analysis: Detail how the virtual placebo group generated from EHR data accelerated the trial and reduced costs, replacing ${Number(trialParams.cohortSize) / 2} human subjects` : ''}
   ${trialParams?.useAdaptiveDesign ? `- Bayesian Adaptive Design Log: Detail how the trial pivoted early based on this log: ${trialResult.adaptiveDesignLog}` : ''}
+  
+  ${dockingData && !dockingData.error ? `CRITICAL DATA TO INCLUDE IN STAGE 1 (Molecular Docking):
+  - Binding Energy: ${dockingData.bindingEnergy} kcal/mol
+  - Spatial Fit Score: ${dockingData.spatialFitScore}/100
+  - Interacting Residues: ${dockingData.interactingResidues?.join(', ') || 'N/A'}` : ''}
+
+  ${qsarData && !qsarData.error ? `CRITICAL DATA TO INCLUDE IN STAGE 1 (ADMET/QSAR Prediction):
+  - Toxicity (LD50): ${qsarData.toxicityLD50} mg/kg
+  - Solubility: ${qsarData.solubility} mg/mL
+  - Clearance Rate: ${qsarData.clearanceRate} mL/min/kg
+  - LogP: ${qsarData.logP}` : ''}
   
   ${trialParams?.useRAG ? `CRITICAL INSTRUCTION: You MUST use the googleSearch tool to query PubChem, ChEMBL, and ClinicalTrials.gov for similar molecular structures and historical trial failures. Base your report strictly on empirical data from structurally similar compounds found in these databases. Cite the sources in the report.` : ''}
   
@@ -327,8 +356,11 @@ export const generateClinicalTrialReport = async (
       });
       return response.choices[0].message.content || "Report generation failed.";
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Report Generation Error:", error);
+    if (error.status === 429 || (error.message && error.message.includes("429"))) {
+      throw new Error("Gemini API Quota Exceeded. Please check your plan and billing details, or try again later.");
+    }
     throw error;
   }
 };
